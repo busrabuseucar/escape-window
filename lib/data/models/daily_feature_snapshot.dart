@@ -15,6 +15,9 @@ class DailyFeatureSnapshot {
     this.unmatchedBackgroundCount = 0,
     this.trackedRawIntervalCount = 0,
     this.trackedPackageMinutes = const {},
+    this.legacyTotalScreenTimeMinutes = 0,
+    this.legacySocialMediaTimeMinutes = 0,
+    this.legacyTrackedIntervalCount = 0,
   });
 
   final DateTime date;
@@ -37,4 +40,11 @@ class DailyFeatureSnapshot {
   final int unmatchedBackgroundCount;
   final int trackedRawIntervalCount;
   final Map<String, double> trackedPackageMinutes;
+
+  /// Counterfactual metrics calculated from the exact same raw event list
+  /// using the pre-fix pairing rule where every foreground event overwrites
+  /// the package start timestamp. These are diagnostics only.
+  final double legacyTotalScreenTimeMinutes;
+  final double legacySocialMediaTimeMinutes;
+  final int legacyTrackedIntervalCount;
 }
