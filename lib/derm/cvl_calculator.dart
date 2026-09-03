@@ -18,6 +18,6 @@ class CvlCalculator {
             .reduce((a, b) => a + b) /
         recentFeatures.length;
 
-    return (meanNight / referenceNightMinutes).clamp(0.0, 1.0);
+    return (meanNight / referenceNightMinutes).clamp(0.0, 1.0).toDouble();
   }
 }
