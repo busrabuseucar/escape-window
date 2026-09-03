@@ -3,7 +3,7 @@ import 'package:escape_window_ai/interventions/cooldown_policy.dart';
 import 'package:escape_window_ai/interventions/intervention_models.dart';
 import 'package:escape_window_ai/interventions/intervention_session_controller.dart';
 import 'package:escape_window_ai/interventions/outcome_tracker.dart';
-import 'package:test/test.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   const recommendation = InterventionRecommendation(
