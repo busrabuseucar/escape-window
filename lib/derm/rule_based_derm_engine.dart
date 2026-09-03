@@ -34,7 +34,7 @@ class RuleBasedDermEngine implements DermEngine {
     this.confidenceEngine = const ConfidenceEngine(),
   });
 
-  static const version = 'derm-rule-v0.1.0';
+  static const version = 'derm-rule-v0.1.1';
 
   final DermRuleConfig config;
   final BpiCalculator bpiCalculator;
@@ -142,7 +142,7 @@ class RuleBasedDermEngine implements DermEngine {
     List<BaselineProfile> baselineProfiles,
   ) {
     final matching = baselineProfiles.where(
-      (profile) => profile.featureName == 'social_media_time_minutes',
+      (profile) => profile.featureName == 'social_media_time',
     );
     if (matching.isEmpty) return 0;
 
