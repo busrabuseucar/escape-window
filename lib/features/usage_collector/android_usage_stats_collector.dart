@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 
 import '../../data/models/daily_feature_snapshot.dart';
+import 'usage_session_normalizer.dart';
 
 class UsageAccessStatus {
   const UsageAccessStatus({required this.supported, required this.granted});
@@ -14,9 +15,11 @@ class UsageAccessStatus {
 class AndroidUsageStatsCollector {
   const AndroidUsageStatsCollector({
     this.channel = const MethodChannel('escape_window_ai/usage_stats'),
+    this.sessionNormalizer = const UsageSessionNormalizer(),
   });
 
   final MethodChannel channel;
+  final UsageSessionNormalizer sessionNormalizer;
 
   Future<UsageAccessStatus> getAccessStatus() async {
     if (!Platform.isAndroid) {
@@ -66,17 +69,19 @@ class AndroidUsageStatsCollector {
       ..sort((a, b) => a.timestampMs.compareTo(b.timestampMs));
 
     final foregroundStartedAt = <String, int>{};
-    final sessions = <_UsageSession>[];
+    final sessions = <UsageSessionWindow>[];
 
     for (final event in events) {
       if (event.eventType == 1) {
-        // UsageEvents.Event.MOVE_TO_FOREGROUND
-        foregroundStartedAt[event.packageName] = event.timestampMs;
+        // UsageEvents.Event.MOVE_TO_FOREGROUND. A duplicate foreground event
+        // for an already-active package must not reset the start timestamp;
+        // doing so fragments one interaction episode into many tiny sessions.
+        foregroundStartedAt.putIfAbsent(event.packageName, () => event.timestampMs);
       } else if (event.eventType == 2) {
         // UsageEvents.Event.MOVE_TO_BACKGROUND
         final startedAt = foregroundStartedAt.remove(event.packageName);
         if (startedAt != null && event.timestampMs > startedAt) {
-          sessions.add(_UsageSession(
+          sessions.add(UsageSessionWindow(
             packageName: event.packageName,
             startMs: startedAt,
             endMs: event.timestampMs,
@@ -88,7 +93,7 @@ class AndroidUsageStatsCollector {
     // Close sessions still in foreground at the end of the requested day.
     for (final entry in foregroundStartedAt.entries) {
       if (end.millisecondsSinceEpoch > entry.value) {
-        sessions.add(_UsageSession(
+        sessions.add(UsageSessionWindow(
           packageName: entry.key,
           startMs: entry.value,
           endMs: end.millisecondsSinceEpoch,
@@ -99,7 +104,7 @@ class AndroidUsageStatsCollector {
     double totalMinutes = 0;
     double socialMinutes = 0;
     double nightMinutes = 0;
-    final trackedSessions = <_UsageSession>[];
+    final trackedSessions = <UsageSessionWindow>[];
 
     for (final session in sessions) {
       final minutes = session.durationMinutes;
@@ -121,10 +126,14 @@ class AndroidUsageStatsCollector {
     final limitExceedanceMinutes =
         (socialMinutes - userDailyLimitMinutes).clamp(0.0, double.infinity).toDouble();
 
-    // Session metrics belong to the apps the user explicitly selected for the
-    // assessment. Counting every foreground transition on the device also
-    // counts launchers/system components and can greatly inflate this value.
-    final sessionCount = trackedSessions.length;
+    // A user-facing "session" is an interaction episode, not every raw Android
+    // foreground/background transition. Same-package intervals separated by at
+    // most 30 seconds are merged to absorb short internal Activity transitions
+    // and transient interruptions. Screen/social/night totals above remain
+    // based on raw intervals, so this correction does not alter risk inputs.
+    final interactionEpisodes =
+        sessionNormalizer.mergeInteractionEpisodes(trackedSessions);
+    final sessionCount = interactionEpisodes.length;
 
     return DailyFeatureSnapshot(
       date: start,
@@ -141,7 +150,7 @@ class AndroidUsageStatsCollector {
   }
 
   double _sensitiveOverlapMinutes(
-    _UsageSession session,
+    UsageSessionWindow session,
     DateTime dayStart,
     int startHour,
     int endHour,
@@ -193,18 +202,4 @@ class _UsageEvent {
   final String packageName;
   final int timestampMs;
   final int eventType;
-}
-
-class _UsageSession {
-  const _UsageSession({
-    required this.packageName,
-    required this.startMs,
-    required this.endMs,
-  });
-
-  final String packageName;
-  final int startMs;
-  final int endMs;
-
-  double get durationMinutes => (endMs - startMs) / 60000.0;
 }
