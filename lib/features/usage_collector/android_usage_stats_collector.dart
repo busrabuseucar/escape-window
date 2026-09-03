@@ -41,7 +41,9 @@ class AndroidUsageStatsCollector {
     int sensitiveWindowEndHour = 6,
   }) async {
     if (!Platform.isAndroid) {
-      throw const UsageStatsUnavailableException('Android UsageStats is not supported on this platform.');
+      throw const UsageStatsUnavailableException(
+        'Android UsageStats is not supported on this platform.',
+      );
     }
 
     final start = DateTime(day.year, day.month, day.day);
@@ -97,13 +99,17 @@ class AndroidUsageStatsCollector {
     double totalMinutes = 0;
     double socialMinutes = 0;
     double nightMinutes = 0;
+    final trackedSessions = <_UsageSession>[];
 
     for (final session in sessions) {
       final minutes = session.durationMinutes;
       totalMinutes += minutes;
+
       if (trackedSocialPackages.contains(session.packageName)) {
         socialMinutes += minutes;
+        trackedSessions.add(session);
       }
+
       nightMinutes += _sensitiveOverlapMinutes(
         session,
         start,
@@ -114,7 +120,11 @@ class AndroidUsageStatsCollector {
 
     final limitExceedanceMinutes =
         (socialMinutes - userDailyLimitMinutes).clamp(0.0, double.infinity).toDouble();
-    final sessionCount = sessions.length;
+
+    // Session metrics belong to the apps the user explicitly selected for the
+    // assessment. Counting every foreground transition on the device also
+    // counts launchers/system components and can greatly inflate this value.
+    final sessionCount = trackedSessions.length;
 
     return DailyFeatureSnapshot(
       date: start,
@@ -122,7 +132,8 @@ class AndroidUsageStatsCollector {
       socialMediaTimeMinutes: socialMinutes,
       nightUsageMinutes: nightMinutes,
       sessionCount: sessionCount,
-      meanSessionDurationMinutes: sessionCount == 0 ? 0 : totalMinutes / sessionCount,
+      meanSessionDurationMinutes:
+          sessionCount == 0 ? 0 : socialMinutes / sessionCount,
       limitExceedanceCount: limitExceedanceMinutes > 0 ? 1 : 0,
       limitExceedanceMinutes: limitExceedanceMinutes,
       dataCompleteness: events.isEmpty ? 0.0 : 1.0,
@@ -167,21 +178,33 @@ class AndroidUsageStatsCollector {
 class UsageStatsUnavailableException implements Exception {
   const UsageStatsUnavailableException(this.message);
   final String message;
+
   @override
   String toString() => message;
 }
 
 class _UsageEvent {
-  const _UsageEvent({required this.packageName, required this.timestampMs, required this.eventType});
+  const _UsageEvent({
+    required this.packageName,
+    required this.timestampMs,
+    required this.eventType,
+  });
+
   final String packageName;
   final int timestampMs;
   final int eventType;
 }
 
 class _UsageSession {
-  const _UsageSession({required this.packageName, required this.startMs, required this.endMs});
+  const _UsageSession({
+    required this.packageName,
+    required this.startMs,
+    required this.endMs,
+  });
+
   final String packageName;
   final int startMs;
   final int endMs;
+
   double get durationMinutes => (endMs - startMs) / 60000.0;
 }
