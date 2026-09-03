@@ -95,7 +95,7 @@ class _AppSelectionScreenState extends State<AppSelectionScreen> {
             ),
             const SizedBox(height: 8),
             const Text(
-              'Seçim daha sonra değiştirilebilir. Uygulama seçimini kaldırmak tek başına risk puanını yükseltmez.',
+              'Uygulama seçimini kaldırmak tek başına risk puanını yükseltmez. Kalıcı ayarlar ekranından seçim düzenleme bağlantısı sonraki MVP adımında eklenecek.',
               textAlign: TextAlign.center,
             ),
           ],
