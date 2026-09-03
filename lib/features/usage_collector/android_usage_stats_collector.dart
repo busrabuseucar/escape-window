@@ -68,10 +68,24 @@ class AndroidUsageStatsCollector {
 
     final foregroundStartedAt = <String, int>{};
     final sessions = <UsageSessionWindow>[];
+    final duplicateForegroundByPackage = <String, int>{};
+    var duplicateForegroundCount = 0;
+    var trackedDuplicateForegroundCount = 0;
     var unmatchedBackgroundCount = 0;
 
     for (final event in events) {
       if (event.eventType == 1) {
+        if (foregroundStartedAt.containsKey(event.packageName)) {
+          duplicateForegroundCount++;
+          duplicateForegroundByPackage.update(
+            event.packageName,
+            (value) => value + 1,
+            ifAbsent: () => 1,
+          );
+          if (trackedSocialPackages.contains(event.packageName)) {
+            trackedDuplicateForegroundCount++;
+          }
+        }
         foregroundStartedAt.putIfAbsent(event.packageName, () => event.timestampMs);
       } else if (event.eventType == 2) {
         final startedAt = foregroundStartedAt.remove(event.packageName);
@@ -124,10 +138,6 @@ class AndroidUsageStatsCollector {
       );
     }
 
-    // Counterfactual: replay the exact same sorted raw events using the original
-    // pre-fix rule. Repeated foreground events overwrite the package start.
-    // This lets a physical-device test isolate pairing logic from Android event
-    // retention/query variability.
     final legacyStarts = <String, int>{};
     final legacySessions = <UsageSessionWindow>[];
     for (final event in events) {
@@ -157,12 +167,18 @@ class AndroidUsageStatsCollector {
     var legacyTotalMinutes = 0.0;
     var legacySocialMinutes = 0.0;
     var legacyTrackedIntervals = 0;
+    final legacyTrackedPackageMinutes = <String, double>{};
     for (final session in legacySessions) {
       final minutes = session.durationMinutes;
       legacyTotalMinutes += minutes;
       if (trackedSocialPackages.contains(session.packageName)) {
         legacySocialMinutes += minutes;
         legacyTrackedIntervals++;
+        legacyTrackedPackageMinutes.update(
+          session.packageName,
+          (value) => value + minutes,
+          ifAbsent: () => minutes,
+        );
       }
     }
 
@@ -192,6 +208,10 @@ class AndroidUsageStatsCollector {
       legacyTotalScreenTimeMinutes: legacyTotalMinutes,
       legacySocialMediaTimeMinutes: legacySocialMinutes,
       legacyTrackedIntervalCount: legacyTrackedIntervals,
+      legacyTrackedPackageMinutes: Map.unmodifiable(legacyTrackedPackageMinutes),
+      duplicateForegroundCount: duplicateForegroundCount,
+      trackedDuplicateForegroundCount: trackedDuplicateForegroundCount,
+      duplicateForegroundByPackage: Map.unmodifiable(duplicateForegroundByPackage),
     );
   }
 
