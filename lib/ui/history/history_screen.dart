@@ -73,6 +73,37 @@ class HistoryScreen extends StatelessWidget {
                         _row('Oturum sayısı', '${day.sessionCount}'),
                         _row('Hedef aşımı', '${day.limitExceedanceCount} kez'),
                         _row('Veri bütünlüğü', '%${(day.dataCompleteness * 100).round()}'),
+                        if (day.rawEventCount > 0) ...[
+                          const Divider(height: 24),
+                          Text(
+                            'UsageStats tanılama',
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                ),
+                          ),
+                          const SizedBox(height: 6),
+                          _row('Ham event', '${day.rawEventCount}'),
+                          _row('Eşleşen interval', '${day.pairedIntervalCount}'),
+                          _row('Takip intervali', '${day.trackedRawIntervalCount}'),
+                          _row('Açık kalan FG', '${day.unmatchedForegroundCount}'),
+                          _row('Eşleşmeyen BG', '${day.unmatchedBackgroundCount}'),
+                          if (day.trackedPackageMinutes.isNotEmpty) ...[
+                            const SizedBox(height: 6),
+                            Text(
+                              'Takip edilen paket süreleri',
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                            ),
+                            const SizedBox(height: 4),
+                            ..._sortedPackageEntries(day).map(
+                              (entry) => _row(
+                                _shortPackage(entry.key),
+                                '${entry.value.round()} dk',
+                              ),
+                            ),
+                          ],
+                        ],
                       ],
                     ),
                   ),
@@ -82,6 +113,18 @@ class HistoryScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  List<MapEntry<String, double>> _sortedPackageEntries(DailyFeatureSnapshot day) {
+    final entries = day.trackedPackageMinutes.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    return entries;
+  }
+
+  String _shortPackage(String packageName) {
+    final parts = packageName.split('.');
+    if (parts.length <= 2) return packageName;
+    return parts.sublist(parts.length - 2).join('.');
   }
 
   Widget _row(String label, String value) {
