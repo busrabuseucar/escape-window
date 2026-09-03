@@ -10,12 +10,16 @@ class DashboardScreen extends StatelessWidget {
     required this.dailyLimitMinutes,
     required this.onRiskDetails,
     required this.onOpenIntervention,
+    required this.onHistory,
+    required this.onPrivacy,
   });
 
   final RiskAssessment assessment;
   final double dailyLimitMinutes;
   final VoidCallback onRiskDetails;
   final VoidCallback onOpenIntervention;
+  final VoidCallback onHistory;
+  final VoidCallback onPrivacy;
 
   String get _riskLabel => switch (assessment.riskLevel) {
         RiskLevel.low => 'Düşük',
@@ -34,7 +38,16 @@ class DashboardScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Bugünkü durum')),
+      appBar: AppBar(
+        title: const Text('Bugünkü durum'),
+        actions: [
+          IconButton(
+            onPressed: onPrivacy,
+            tooltip: 'Gizlilik ve veri kontrolleri',
+            icon: const Icon(Icons.privacy_tip_outlined),
+          ),
+        ],
+      ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(20),
@@ -80,6 +93,12 @@ class DashboardScreen extends StatelessWidget {
             FilledButton(onPressed: onRiskDetails, child: const Text('Risk detayını gör')),
             const SizedBox(height: 10),
             OutlinedButton(onPressed: onOpenIntervention, child: const Text('ESCAPE müdahale ekranını aç')),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: onHistory,
+              icon: const Icon(Icons.timeline_outlined),
+              label: const Text('Geçmiş ve eğilimi gör'),
+            ),
           ],
         ),
       ),
