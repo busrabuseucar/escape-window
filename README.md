@@ -20,7 +20,9 @@ ESCAPE Window AI, 18–24 yaş üniversite çağındaki kullanıcıların proble
 ## Çekirdek Akış
 
 ```text
-Usage Data
+Android UsageStats / Demo Data
+   ↓
+DailyFeatureSnapshot
    ↓
 Feature Engine
    ↓
@@ -36,6 +38,22 @@ Micro Intervention
    ↓
 Outcome Tracking
 ```
+
+## Android UsageStats Entegrasyonu
+
+MVP artık Android `UsageStatsManager` ile gerçek cihaz kullanım olaylarını okuyabilecek bir MethodChannel katmanı içerir.
+
+- Kullanıcı önce açık rıza verir.
+- Ardından Android'in **Kullanım erişimi** ayar ekranına yönlendirilir.
+- İzin verilmeden kullanım verisi okunmaz.
+- Native katman yalnızca uygulama paketi, foreground/background olay tipi ve zaman damgasını Flutter tarafına iletir.
+- Mesaj içeriği, fotoğraflar, mikrofon, kişiler, tuş vuruşları veya özel iletişim içeriği okunmaz.
+- Flutter tarafı foreground/background olaylarını oturumlara dönüştürerek günlük toplam kullanım, seçili sosyal uygulama kullanımı, hassas saat kullanımı, oturum sayısı ve kişisel hedef aşımını üretir.
+- Bugünün eksik verisi yerine son 14 **tamamlanmış** gün kullanılır: ilk 7 gün baseline kalibrasyonu, son 7 gün mevcut değerlendirme penceresi olarak ayrılır.
+
+İlk MVP'deki sosyal uygulama paket listesi mühendislik amaçlı başlangıç sınıflandırmasıdır; klinik bir sınıflandırma değildir. Sonraki sürümde kullanıcının takip edilecek uygulamaları kendisinin seçebilmesi hedeflenmektedir.
+
+> Not: GitHub bağlayıcısı Flutter/Android derleme ortamı çalıştırmadığı için repository'ye eklenen Android köprüsü burada runtime olarak doğrulanmış değildir. Gerçek cihazda `flutter analyze`, `flutter test` ve `flutter run` ile ayrıca doğrulanmalıdır.
 
 ## DERM
 
@@ -83,9 +101,12 @@ lib/
 ├── baseline/
 ├── derm/
 ├── escape/
+├── hybrid/
 ├── interventions/
 ├── privacy/
 └── ui/
+android/
+└── app/src/main/
 test/
 ├── baseline/
 ├── derm/
