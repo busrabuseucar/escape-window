@@ -1,7 +1,7 @@
 import 'package:escape_window_ai/core/enums/risk_enums.dart';
 import 'package:escape_window_ai/features/usage_collector/demo_data_provider.dart';
 import 'package:escape_window_ai/hybrid/hybrid_risk_engine.dart';
-import 'package:test/test.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   const engine = HybridRiskEngine();
