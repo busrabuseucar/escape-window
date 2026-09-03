@@ -66,8 +66,13 @@ class AndroidUsageStatsCollector {
         .toList()
       ..sort((a, b) => a.timestampMs.compareTo(b.timestampMs));
 
-    final foregroundStartedAt = <String, int>{};
-    final sessions = <UsageSessionWindow>[];
+    // Duration pairing deliberately keeps the most recent foreground timestamp
+    // for a package. Physical-device diagnostics showed that preserving the
+    // earliest duplicate foreground can substantially over-count Instagram
+    // duration on some days. This pairing is therefore used for all duration
+    // metrics and risk inputs.
+    final durationStarts = <String, int>{};
+    final durationSessions = <UsageSessionWindow>[];
     final duplicateForegroundByPackage = <String, int>{};
     var duplicateForegroundCount = 0;
     var trackedDuplicateForegroundCount = 0;
@@ -75,7 +80,7 @@ class AndroidUsageStatsCollector {
 
     for (final event in events) {
       if (event.eventType == 1) {
-        if (foregroundStartedAt.containsKey(event.packageName)) {
+        if (durationStarts.containsKey(event.packageName)) {
           duplicateForegroundCount++;
           duplicateForegroundByPackage.update(
             event.packageName,
@@ -86,11 +91,11 @@ class AndroidUsageStatsCollector {
             trackedDuplicateForegroundCount++;
           }
         }
-        foregroundStartedAt.putIfAbsent(event.packageName, () => event.timestampMs);
+        durationStarts[event.packageName] = event.timestampMs;
       } else if (event.eventType == 2) {
-        final startedAt = foregroundStartedAt.remove(event.packageName);
+        final startedAt = durationStarts.remove(event.packageName);
         if (startedAt != null && event.timestampMs > startedAt) {
-          sessions.add(UsageSessionWindow(
+          durationSessions.add(UsageSessionWindow(
             packageName: event.packageName,
             startMs: startedAt,
             endMs: event.timestampMs,
@@ -101,10 +106,10 @@ class AndroidUsageStatsCollector {
       }
     }
 
-    final unmatchedForegroundCount = foregroundStartedAt.length;
-    for (final entry in foregroundStartedAt.entries) {
+    final unmatchedForegroundCount = durationStarts.length;
+    for (final entry in durationStarts.entries) {
       if (end.millisecondsSinceEpoch > entry.value) {
-        sessions.add(UsageSessionWindow(
+        durationSessions.add(UsageSessionWindow(
           packageName: entry.key,
           startMs: entry.value,
           endMs: end.millisecondsSinceEpoch,
@@ -115,15 +120,15 @@ class AndroidUsageStatsCollector {
     double totalMinutes = 0;
     double socialMinutes = 0;
     double nightMinutes = 0;
-    final trackedSessions = <UsageSessionWindow>[];
+    final trackedDurationSessions = <UsageSessionWindow>[];
     final trackedPackageMinutes = <String, double>{};
 
-    for (final session in sessions) {
+    for (final session in durationSessions) {
       final minutes = session.durationMinutes;
       totalMinutes += minutes;
       if (trackedSocialPackages.contains(session.packageName)) {
         socialMinutes += minutes;
-        trackedSessions.add(session);
+        trackedDurationSessions.add(session);
         trackedPackageMinutes.update(
           session.packageName,
           (value) => value + minutes,
@@ -138,55 +143,16 @@ class AndroidUsageStatsCollector {
       );
     }
 
-    final legacyStarts = <String, int>{};
-    final legacySessions = <UsageSessionWindow>[];
-    for (final event in events) {
-      if (event.eventType == 1) {
-        legacyStarts[event.packageName] = event.timestampMs;
-      } else if (event.eventType == 2) {
-        final startedAt = legacyStarts.remove(event.packageName);
-        if (startedAt != null && event.timestampMs > startedAt) {
-          legacySessions.add(UsageSessionWindow(
-            packageName: event.packageName,
-            startMs: startedAt,
-            endMs: event.timestampMs,
-          ));
-        }
-      }
-    }
-    for (final entry in legacyStarts.entries) {
-      if (end.millisecondsSinceEpoch > entry.value) {
-        legacySessions.add(UsageSessionWindow(
-          packageName: entry.key,
-          startMs: entry.value,
-          endMs: end.millisecondsSinceEpoch,
-        ));
-      }
-    }
-
-    var legacyTotalMinutes = 0.0;
-    var legacySocialMinutes = 0.0;
-    var legacyTrackedIntervals = 0;
-    final legacyTrackedPackageMinutes = <String, double>{};
-    for (final session in legacySessions) {
-      final minutes = session.durationMinutes;
-      legacyTotalMinutes += minutes;
-      if (trackedSocialPackages.contains(session.packageName)) {
-        legacySocialMinutes += minutes;
-        legacyTrackedIntervals++;
-        legacyTrackedPackageMinutes.update(
-          session.packageName,
-          (value) => value + minutes,
-          ifAbsent: () => minutes,
-        );
-      }
-    }
+    // Session count is a separate user-facing behavioral metric. It is derived
+    // from the duration-paired tracked intervals, then normalized so short
+    // same-package interruptions (<=30 s) do not inflate one interaction into
+    // many sessions. This normalization does not change duration/risk inputs.
+    final interactionEpisodes =
+        sessionNormalizer.mergeInteractionEpisodes(trackedDurationSessions);
+    final sessionCount = interactionEpisodes.length;
 
     final limitExceedanceMinutes =
         (socialMinutes - userDailyLimitMinutes).clamp(0.0, double.infinity).toDouble();
-    final interactionEpisodes =
-        sessionNormalizer.mergeInteractionEpisodes(trackedSessions);
-    final sessionCount = interactionEpisodes.length;
 
     return DailyFeatureSnapshot(
       date: start,
@@ -200,15 +166,15 @@ class AndroidUsageStatsCollector {
       limitExceedanceMinutes: limitExceedanceMinutes,
       dataCompleteness: events.isEmpty ? 0.0 : 1.0,
       rawEventCount: events.length,
-      pairedIntervalCount: sessions.length,
+      pairedIntervalCount: durationSessions.length,
       unmatchedForegroundCount: unmatchedForegroundCount,
       unmatchedBackgroundCount: unmatchedBackgroundCount,
-      trackedRawIntervalCount: trackedSessions.length,
+      trackedRawIntervalCount: trackedDurationSessions.length,
       trackedPackageMinutes: Map.unmodifiable(trackedPackageMinutes),
-      legacyTotalScreenTimeMinutes: legacyTotalMinutes,
-      legacySocialMediaTimeMinutes: legacySocialMinutes,
-      legacyTrackedIntervalCount: legacyTrackedIntervals,
-      legacyTrackedPackageMinutes: Map.unmodifiable(legacyTrackedPackageMinutes),
+      legacyTotalScreenTimeMinutes: totalMinutes,
+      legacySocialMediaTimeMinutes: socialMinutes,
+      legacyTrackedIntervalCount: trackedDurationSessions.length,
+      legacyTrackedPackageMinutes: Map.unmodifiable(trackedPackageMinutes),
       duplicateForegroundCount: duplicateForegroundCount,
       trackedDuplicateForegroundCount: trackedDuplicateForegroundCount,
       duplicateForegroundByPackage: Map.unmodifiable(duplicateForegroundByPackage),
