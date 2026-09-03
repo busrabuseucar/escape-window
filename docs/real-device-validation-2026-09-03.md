@@ -31,15 +31,53 @@ During the validation session, the application displayed real daily values inclu
 
 The runtime risk output was `ELEVATED`/"Yükselmiş" with medium confidence. This observation confirms pipeline execution only; it is not a clinical validation of DERM thresholds or weights.
 
-## Session-count finding
+## Session-count investigation and correction
 
-The first device build reported daily session counts in the approximate 600–880 range. Code inspection showed that the collector used every paired foreground/background session on the device for `sessionCount`. Android UsageEvents may include launcher/system components and frequent app transitions, so this value can represent device-level foreground transitions rather than sessions of the applications explicitly selected for assessment.
+### Initial observation
 
-### Correction
+The first physical-device build reported session counts between approximately 600 and 880 per day. These values were inconsistent with a user-facing interpretation of a behavioral application-use session.
 
-`sessionCount` is now calculated only from sessions whose package is included in `trackedSocialPackages`. `meanSessionDurationMinutes` uses the same scope (`socialMediaTimeMinutes / tracked session count`).
+The first correction limited session metrics to packages explicitly selected by the user. Physical-device retesting showed that this was insufficient: the same historical days still produced the inflated counts. This disproved the initial assumption that launcher/system packages were the sole cause.
 
-Total screen-time and sensitive-hour calculations remain device-level metrics. The change therefore corrects the meaning of the session metric without changing the current DERM risk calculation path, which does not directly consume `sessionCount`.
+### Root cause model
+
+Android UsageEvents can expose rapid foreground/background transitions within the same application. Treating every paired transition as an independent behavioral session fragments one continuous user interaction into many technical event intervals.
+
+### Sessionization rule
+
+The collector now distinguishes raw usage intervals from behavioral session episodes:
+
+- only user-selected tracked packages contribute to the tracked session metric;
+- redundant foreground state transitions are not allowed to reset an already-open foreground interval;
+- intervals from the same package separated by 30 seconds or less are grouped into one behavioral session episode;
+- intervals from different packages are not merged;
+- duration metrics remain independently derived from usage intervals so session normalization is not intended to suppress recorded usage time.
+
+The 30-second value is an engineering debounce/sessionization parameter for short Android event fragmentation, not a clinical threshold or behavioral-risk cutoff.
+
+### Physical-device retest
+
+After uninstalling the previous build and performing a clean installation of the normalized build, the same historical period was measured again.
+
+| Date | Previous session count | Normalized session count |
+| --- | ---: | ---: |
+| 02.09.2026 | 677 | 54 |
+| 01.09.2026 | 711 | 59 |
+| 31.08.2026 | 825 | 43 |
+| 30.08.2026 | 880 | 33 |
+| 29.08.2026 | 685 | 33 |
+| 28.08.2026 | 600 | 36 |
+| 27.08.2026 | 787 | 39 |
+
+The normalized values are therefore approximately 92–96% lower than the raw fragmented-event counts.
+
+A particularly useful control observation was 29.08.2026: tracked social usage remained 104 minutes while session count changed from 685 to 33. Total screen time remained 207 minutes and sensitive-hour usage remained 3 minutes. This supports the interpretation that the correction addressed session fragmentation rather than simply reducing usage duration.
+
+### Reproducibility note
+
+Some duration values for 27.08 and 30.08 differed between the first and clean-install retest, while several other dates remained stable or nearly stable. Those two dates require a separate UsageStats reproducibility investigation. They are not treated as evidence for or against the sessionization correction.
+
+The current DERM risk path does not directly consume `sessionCount`, so this correction primarily improves measurement semantics, history presentation and future feature reliability rather than artificially changing the current risk classification.
 
 ## Privacy observations
 
@@ -47,6 +85,8 @@ The tested bridge requested only Android Usage Access. The native payload contai
 
 ## Validation status
 
-**Physical-device MVP runtime chain: PASS**
+**Physical-device MVP runtime chain: PASS**  
+**Tracked-app session normalization physical-device retest: PASS**  
+**27.08 / 30.08 duration reproducibility investigation: OPEN**
 
 This is an engineering/runtime validation. Clinical validity, threshold calibration, behavioral outcome efficacy, demographic generalization and longitudinal reliability require separate pilot studies and validation protocols.
