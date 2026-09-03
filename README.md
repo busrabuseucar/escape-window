@@ -41,19 +41,42 @@ Outcome Tracking
 
 ## Android UsageStats Entegrasyonu
 
-MVP artık Android `UsageStatsManager` ile gerçek cihaz kullanım olaylarını okuyabilecek bir MethodChannel katmanı içerir.
+MVP Android `UsageStatsManager` ile gerçek cihaz kullanım olaylarını okuyan bir MethodChannel katmanı içerir.
 
 - Kullanıcı önce açık rıza verir.
 - Ardından Android'in **Kullanım erişimi** ayar ekranına yönlendirilir.
 - İzin verilmeden kullanım verisi okunmaz.
 - Native katman yalnızca uygulama paketi, foreground/background olay tipi ve zaman damgasını Flutter tarafına iletir.
 - Mesaj içeriği, fotoğraflar, mikrofon, kişiler, tuş vuruşları veya özel iletişim içeriği okunmaz.
-- Flutter tarafı foreground/background olaylarını oturumlara dönüştürerek günlük toplam kullanım, seçili sosyal uygulama kullanımı, hassas saat kullanımı, oturum sayısı ve kişisel hedef aşımını üretir.
+- Flutter tarafı foreground/background olaylarını oturumlara dönüştürerek günlük toplam kullanım, seçili sosyal uygulama kullanımı, hassas saat kullanımı, takip edilen uygulama oturum sayısı ve kişisel hedef aşımını üretir.
+- Oturum sayısı ve ortalama oturum süresi yalnızca kullanıcının değerlendirme için seçtiği paketler üzerinden hesaplanır; launcher/sistem foreground geçişleri bu metrikleri şişirmez.
 - Bugünün eksik verisi yerine son 14 **tamamlanmış** gün kullanılır: ilk 7 gün baseline kalibrasyonu, son 7 gün mevcut değerlendirme penceresi olarak ayrılır.
 
-İlk MVP'deki sosyal uygulama paket listesi mühendislik amaçlı başlangıç sınıflandırmasıdır; klinik bir sınıflandırma değildir. Sonraki sürümde kullanıcının takip edilecek uygulamaları kendisinin seçebilmesi hedeflenmektedir.
+İlk MVP'deki sosyal uygulama paket listesi mühendislik amaçlı başlangıç sınıflandırmasıdır; klinik bir sınıflandırma değildir. Kullanıcı değerlendirmeye dahil edilecek uygulamaları onboarding sırasında seçer.
 
-> Not: GitHub bağlayıcısı Flutter/Android derleme ortamı çalıştırmadığı için repository'ye eklenen Android köprüsü burada runtime olarak doğrulanmış değildir. Gerçek cihazda `flutter analyze`, `flutter test` ve `flutter run` ile ayrıca doğrulanmalıdır.
+### Gerçek cihaz doğrulaması — 03.09.2026
+
+Android debug APK gerçek bir Android cihazda uçtan uca doğrulandı. Başarıyla test edilen zincir:
+
+```text
+APK kurulumu
+→ açık rıza
+→ Android Usage Access ayarına yönlendirme
+→ izin dönüşünün otomatik algılanması
+→ takip edilecek uygulamaların seçimi
+→ geçmiş UsageStats olaylarının okunması
+→ 14 tamamlanmış günlük pencerenin işlenmesi
+→ DailyFeatureSnapshot
+→ baseline + DERM değerlendirmesi
+→ açıklanabilir risk ekranı
+→ ESCAPE müdahale penceresi
+→ müdahalenin kullanıcı tarafından kabul edilmesi
+→ geçmiş/eğilim görünümü
+```
+
+Cihaz testinde gerçek günlük toplam ekran süresi, seçili sosyal uygulama süresi, gece kullanımı, hedef aşımı ve veri bütünlüğü alanlarının gün bazında üretildiği doğrulandı. Test sırasında tüm uygulama foreground geçişlerini sayan eski oturum metriğinin aşırı yüksek değer üretebildiği gözlendi; metrik takip edilen uygulamalarla sınırlandırılarak düzeltildi.
+
+Ayrıntılı doğrulama kaydı için `docs/real-device-validation-2026-09-03.md` dosyasına bakın.
 
 ## DERM
 
@@ -128,4 +151,4 @@ Demo/Device Data
 → History
 ```
 
-Bu zincir uçtan uca çalışmadan MVP tamamlanmış kabul edilmez.
+Bu zincir 03.09.2026 tarihinde gerçek Android cihaz üzerinde uçtan uca doğrulanmıştır.
