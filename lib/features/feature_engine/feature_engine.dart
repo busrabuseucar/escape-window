@@ -38,7 +38,8 @@ class FeatureEngine {
     final precedingEnd = history.length - currentWindow.length;
     if (precedingEnd <= 0) return 0;
 
-    final precedingStart = (precedingEnd - currentWindow.length).clamp(0, precedingEnd);
+    final precedingStart =
+        (precedingEnd - currentWindow.length).clamp(0, precedingEnd).toInt();
     final previousWindow = history.sublist(precedingStart, precedingEnd);
     if (previousWindow.isEmpty) return 0;
 
