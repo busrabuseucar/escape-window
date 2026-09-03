@@ -34,8 +34,6 @@ class AndroidUsageStatsCollector {
     await channel.invokeMethod<void>('openUsageAccessSettings');
   }
 
-  /// Converts Android UsageEvents into the privacy-minimized daily feature
-  /// snapshot consumed by DERM. No message/content data is requested.
   Future<DailyFeatureSnapshot> collectDay({
     required DateTime day,
     required double userDailyLimitMinutes,
@@ -74,12 +72,8 @@ class AndroidUsageStatsCollector {
 
     for (final event in events) {
       if (event.eventType == 1) {
-        // UsageEvents.Event.MOVE_TO_FOREGROUND. A duplicate foreground event
-        // for an already-active package must not reset the start timestamp;
-        // doing so fragments one interaction episode into many tiny sessions.
         foregroundStartedAt.putIfAbsent(event.packageName, () => event.timestampMs);
       } else if (event.eventType == 2) {
-        // UsageEvents.Event.MOVE_TO_BACKGROUND
         final startedAt = foregroundStartedAt.remove(event.packageName);
         if (startedAt != null && event.timestampMs > startedAt) {
           sessions.add(UsageSessionWindow(
@@ -88,18 +82,12 @@ class AndroidUsageStatsCollector {
             endMs: event.timestampMs,
           ));
         } else if (startedAt == null) {
-          // A background event without an in-range foreground event can occur
-          // at query boundaries or when Android's retained event history is
-          // incomplete. Record it so historical-repeatability problems can be
-          // diagnosed rather than silently hidden.
           unmatchedBackgroundCount++;
         }
       }
     }
 
     final unmatchedForegroundCount = foregroundStartedAt.length;
-
-    // Close sessions still in foreground at the end of the requested day.
     for (final entry in foregroundStartedAt.entries) {
       if (end.millisecondsSinceEpoch > entry.value) {
         sessions.add(UsageSessionWindow(
@@ -119,7 +107,6 @@ class AndroidUsageStatsCollector {
     for (final session in sessions) {
       final minutes = session.durationMinutes;
       totalMinutes += minutes;
-
       if (trackedSocialPackages.contains(session.packageName)) {
         socialMinutes += minutes;
         trackedSessions.add(session);
@@ -129,7 +116,6 @@ class AndroidUsageStatsCollector {
           ifAbsent: () => minutes,
         );
       }
-
       nightMinutes += _sensitiveOverlapMinutes(
         session,
         start,
@@ -138,14 +124,50 @@ class AndroidUsageStatsCollector {
       );
     }
 
+    // Counterfactual: replay the exact same sorted raw events using the original
+    // pre-fix rule. Repeated foreground events overwrite the package start.
+    // This lets a physical-device test isolate pairing logic from Android event
+    // retention/query variability.
+    final legacyStarts = <String, int>{};
+    final legacySessions = <UsageSessionWindow>[];
+    for (final event in events) {
+      if (event.eventType == 1) {
+        legacyStarts[event.packageName] = event.timestampMs;
+      } else if (event.eventType == 2) {
+        final startedAt = legacyStarts.remove(event.packageName);
+        if (startedAt != null && event.timestampMs > startedAt) {
+          legacySessions.add(UsageSessionWindow(
+            packageName: event.packageName,
+            startMs: startedAt,
+            endMs: event.timestampMs,
+          ));
+        }
+      }
+    }
+    for (final entry in legacyStarts.entries) {
+      if (end.millisecondsSinceEpoch > entry.value) {
+        legacySessions.add(UsageSessionWindow(
+          packageName: entry.key,
+          startMs: entry.value,
+          endMs: end.millisecondsSinceEpoch,
+        ));
+      }
+    }
+
+    var legacyTotalMinutes = 0.0;
+    var legacySocialMinutes = 0.0;
+    var legacyTrackedIntervals = 0;
+    for (final session in legacySessions) {
+      final minutes = session.durationMinutes;
+      legacyTotalMinutes += minutes;
+      if (trackedSocialPackages.contains(session.packageName)) {
+        legacySocialMinutes += minutes;
+        legacyTrackedIntervals++;
+      }
+    }
+
     final limitExceedanceMinutes =
         (socialMinutes - userDailyLimitMinutes).clamp(0.0, double.infinity).toDouble();
-
-    // A user-facing "session" is an interaction episode, not every raw Android
-    // foreground/background transition. Same-package intervals separated by at
-    // most 30 seconds are merged to absorb short internal Activity transitions
-    // and transient interruptions. Screen/social/night totals above remain
-    // based on raw intervals, so this correction does not alter risk inputs.
     final interactionEpisodes =
         sessionNormalizer.mergeInteractionEpisodes(trackedSessions);
     final sessionCount = interactionEpisodes.length;
@@ -167,6 +189,9 @@ class AndroidUsageStatsCollector {
       unmatchedBackgroundCount: unmatchedBackgroundCount,
       trackedRawIntervalCount: trackedSessions.length,
       trackedPackageMinutes: Map.unmodifiable(trackedPackageMinutes),
+      legacyTotalScreenTimeMinutes: legacyTotalMinutes,
+      legacySocialMediaTimeMinutes: legacySocialMinutes,
+      legacyTrackedIntervalCount: legacyTrackedIntervals,
     );
   }
 
@@ -178,7 +203,6 @@ class AndroidUsageStatsCollector {
   ) {
     final sessionStart = DateTime.fromMillisecondsSinceEpoch(session.startMs);
     final sessionEnd = DateTime.fromMillisecondsSinceEpoch(session.endMs);
-
     final windows = <({DateTime start, DateTime end})>[];
     if (startHour > endHour) {
       windows.add((start: dayStart, end: dayStart.add(Duration(hours: endHour))));
@@ -192,7 +216,6 @@ class AndroidUsageStatsCollector {
         end: dayStart.add(Duration(hours: endHour)),
       ));
     }
-
     double minutes = 0;
     for (final window in windows) {
       final overlapStart = sessionStart.isAfter(window.start) ? sessionStart : window.start;
