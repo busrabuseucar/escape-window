@@ -70,6 +70,7 @@ class AndroidUsageStatsCollector {
 
     final foregroundStartedAt = <String, int>{};
     final sessions = <UsageSessionWindow>[];
+    var unmatchedBackgroundCount = 0;
 
     for (final event in events) {
       if (event.eventType == 1) {
@@ -86,9 +87,17 @@ class AndroidUsageStatsCollector {
             startMs: startedAt,
             endMs: event.timestampMs,
           ));
+        } else if (startedAt == null) {
+          // A background event without an in-range foreground event can occur
+          // at query boundaries or when Android's retained event history is
+          // incomplete. Record it so historical-repeatability problems can be
+          // diagnosed rather than silently hidden.
+          unmatchedBackgroundCount++;
         }
       }
     }
+
+    final unmatchedForegroundCount = foregroundStartedAt.length;
 
     // Close sessions still in foreground at the end of the requested day.
     for (final entry in foregroundStartedAt.entries) {
@@ -105,6 +114,7 @@ class AndroidUsageStatsCollector {
     double socialMinutes = 0;
     double nightMinutes = 0;
     final trackedSessions = <UsageSessionWindow>[];
+    final trackedPackageMinutes = <String, double>{};
 
     for (final session in sessions) {
       final minutes = session.durationMinutes;
@@ -113,6 +123,11 @@ class AndroidUsageStatsCollector {
       if (trackedSocialPackages.contains(session.packageName)) {
         socialMinutes += minutes;
         trackedSessions.add(session);
+        trackedPackageMinutes.update(
+          session.packageName,
+          (value) => value + minutes,
+          ifAbsent: () => minutes,
+        );
       }
 
       nightMinutes += _sensitiveOverlapMinutes(
@@ -146,6 +161,12 @@ class AndroidUsageStatsCollector {
       limitExceedanceCount: limitExceedanceMinutes > 0 ? 1 : 0,
       limitExceedanceMinutes: limitExceedanceMinutes,
       dataCompleteness: events.isEmpty ? 0.0 : 1.0,
+      rawEventCount: events.length,
+      pairedIntervalCount: sessions.length,
+      unmatchedForegroundCount: unmatchedForegroundCount,
+      unmatchedBackgroundCount: unmatchedBackgroundCount,
+      trackedRawIntervalCount: trackedSessions.length,
+      trackedPackageMinutes: Map.unmodifiable(trackedPackageMinutes),
     );
   }
 
