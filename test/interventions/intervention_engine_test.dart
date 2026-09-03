@@ -3,7 +3,7 @@ import 'package:escape_window_ai/data/models/risk_assessment.dart';
 import 'package:escape_window_ai/escape/escape_window_engine.dart';
 import 'package:escape_window_ai/interventions/intervention_engine.dart';
 import 'package:escape_window_ai/interventions/intervention_models.dart';
-import 'package:test/test.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   const engine = DeterministicInterventionEngine();
