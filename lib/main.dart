@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'data/models/daily_feature_snapshot.dart';
+import 'features/usage_collector/android_usage_stats_collector.dart';
 import 'features/usage_collector/demo_data_provider.dart';
 import 'hybrid/hybrid_risk_engine.dart';
 import 'hybrid/hybrid_risk_result.dart';
@@ -11,6 +13,7 @@ import 'ui/history/history_screen.dart';
 import 'ui/intervention/intervention_screen.dart';
 import 'ui/onboarding/goal_setup_screen.dart';
 import 'ui/onboarding/onboarding_screen.dart';
+import 'ui/onboarding/usage_permission_screen.dart';
 import 'ui/privacy/privacy_screen.dart';
 import 'ui/risk_detail/risk_detail_screen.dart';
 import 'ui/theme/app_theme.dart';
@@ -43,11 +46,26 @@ class _AppFlow extends StatefulWidget {
 class _AppFlowState extends State<_AppFlow> {
   static const _demoProvider = DemoDataProvider();
   static const _hybridEngine = HybridRiskEngine();
+  static const _usageCollector = AndroidUsageStatsCollector();
+
+  // MVP category map. This is an engineering classification, not a clinical
+  // statement. A later UI will let the user review/select tracked app packages.
+  static const Set<String> _defaultSocialPackages = {
+    'com.instagram.android',
+    'com.zhiliaoapp.musically',
+    'com.google.android.youtube',
+    'com.twitter.android',
+    'com.facebook.katana',
+    'com.snapchat.android',
+    'com.reddit.frontpage',
+  };
 
   bool consentCompleted = false;
+  bool usagePermissionCompleted = false;
   bool goalCompleted = false;
+  bool useDemoData = false;
   double dailyLimitMinutes = 120;
-  Future<HybridRiskResult>? _hybridFuture;
+  Future<_EvaluationBundle>? _evaluationFuture;
 
   @override
   Widget build(BuildContext context) {
@@ -57,20 +75,27 @@ class _AppFlowState extends State<_AppFlow> {
       );
     }
 
+    if (!usagePermissionCompleted && !useDemoData) {
+      return UsagePermissionScreen(
+        collector: _usageCollector,
+        onGranted: () => setState(() => usagePermissionCompleted = true),
+      );
+    }
+
     if (!goalCompleted) {
       return GoalSetupScreen(
         onSaved: (limit) => setState(() {
           dailyLimitMinutes = limit;
           goalCompleted = true;
-          _hybridFuture = _evaluateHybridRisk();
+          _evaluationFuture = _evaluate();
         }),
       );
     }
 
-    _hybridFuture ??= _evaluateHybridRisk();
+    _evaluationFuture ??= _evaluate();
 
-    return FutureBuilder<HybridRiskResult>(
-      future: _hybridFuture,
+    return FutureBuilder<_EvaluationBundle>(
+      future: _evaluationFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
           return const Scaffold(
@@ -88,12 +113,28 @@ class _AppFlowState extends State<_AppFlow> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const Text('Risk değerlendirmesi oluşturulamadı.'),
+                    const SizedBox(height: 8),
+                    if (snapshot.hasError)
+                      Text(
+                        '${snapshot.error}',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
                     const SizedBox(height: 12),
                     FilledButton(
                       onPressed: () => setState(() {
-                        _hybridFuture = _evaluateHybridRisk();
+                        _evaluationFuture = _evaluate();
                       }),
                       child: const Text('Tekrar dene'),
+                    ),
+                    const SizedBox(height: 10),
+                    OutlinedButton(
+                      onPressed: () => setState(() {
+                        useDemoData = true;
+                        usagePermissionCompleted = false;
+                        _evaluationFuture = _evaluate();
+                      }),
+                      child: const Text('Kontrollü demo verisiyle devam et'),
                     ),
                   ],
                 ),
@@ -102,7 +143,8 @@ class _AppFlowState extends State<_AppFlow> {
           );
         }
 
-        final result = snapshot.data!;
+        final bundle = snapshot.data!;
+        final result = bundle.result;
         final assessment = result.assessment;
 
         return DashboardScreen(
@@ -120,7 +162,7 @@ class _AppFlowState extends State<_AppFlow> {
             Navigator.of(context).push(
               MaterialPageRoute(
                 builder: (_) => HistoryScreen(
-                  history: _demoProvider.persistentRiskScenario(),
+                  history: bundle.recentHistory,
                   assessment: assessment,
                 ),
               ),
@@ -130,7 +172,7 @@ class _AppFlowState extends State<_AppFlow> {
             Navigator.of(context).push(
               MaterialPageRoute(
                 builder: (_) => PrivacyScreen(
-                  onDeleteLocalDemoData: _resetDemoState,
+                  onDeleteLocalDemoData: _resetState,
                 ),
               ),
             );
@@ -140,12 +182,51 @@ class _AppFlowState extends State<_AppFlow> {
     );
   }
 
-  Future<HybridRiskResult> _evaluateHybridRisk() {
-    return _hybridEngine.evaluate(
-      calibrationHistory: _demoProvider.normalScenario(),
-      recentFeatures: _demoProvider.persistentRiskScenario(),
+  Future<_EvaluationBundle> _evaluate() async {
+    if (useDemoData) {
+      final recent = _demoProvider.persistentRiskScenario();
+      final result = await _hybridEngine.evaluate(
+        calibrationHistory: _demoProvider.normalScenario(),
+        recentFeatures: recent,
+        userDailyLimitMinutes: dailyLimitMinutes,
+      );
+      return _EvaluationBundle(result: result, recentHistory: recent, source: 'demo');
+    }
+
+    final status = await _usageCollector.getAccessStatus();
+    if (!status.supported || !status.granted) {
+      throw const UsageStatsUnavailableException(
+        'Android kullanım erişimi açık değil. İzni etkinleştir veya demo modunu kullan.',
+      );
+    }
+
+    // Use fourteen completed days so today's partial data does not distort
+    // completeness. First 7 days calibrate personal baseline; last 7 are the
+    // current evaluation window.
+    final today = DateTime.now();
+    final anchor = DateTime(today.year, today.month, today.day);
+    final days = <DailyFeatureSnapshot>[];
+
+    for (var offset = 14; offset >= 1; offset--) {
+      final day = anchor.subtract(Duration(days: offset));
+      days.add(
+        await _usageCollector.collectDay(
+          day: day,
+          userDailyLimitMinutes: dailyLimitMinutes,
+          trackedSocialPackages: _defaultSocialPackages,
+        ),
+      );
+    }
+
+    final calibration = days.sublist(0, 7);
+    final recent = days.sublist(7, 14);
+    final result = await _hybridEngine.evaluate(
+      calibrationHistory: calibration,
+      recentFeatures: recent,
       userDailyLimitMinutes: dailyLimitMinutes,
     );
+
+    return _EvaluationBundle(result: result, recentHistory: recent, source: 'android_usage_stats');
   }
 
   void _openIntervention(BuildContext context, HybridRiskResult result) {
@@ -188,12 +269,14 @@ class _AppFlowState extends State<_AppFlow> {
     );
   }
 
-  void _resetDemoState() {
+  void _resetState() {
     setState(() {
       consentCompleted = false;
+      usagePermissionCompleted = false;
       goalCompleted = false;
+      useDemoData = false;
       dailyLimitMinutes = 120;
-      _hybridFuture = null;
+      _evaluationFuture = null;
     });
   }
 
@@ -203,4 +286,16 @@ class _AppFlowState extends State<_AppFlow> {
         InterventionResponse.dismissed => 'Müdahale şimdilik geçildi. Risk puanın bundan dolayı artmaz.',
         InterventionResponse.noResponse => 'Yanıt kaydedilmedi.',
       };
+}
+
+class _EvaluationBundle {
+  const _EvaluationBundle({
+    required this.result,
+    required this.recentHistory,
+    required this.source,
+  });
+
+  final HybridRiskResult result;
+  final List<DailyFeatureSnapshot> recentHistory;
+  final String source;
 }
