@@ -49,7 +49,8 @@ MVP Android `UsageStatsManager` ile gerçek cihaz kullanım olaylarını okuyan 
 - Native katman yalnızca uygulama paketi, foreground/background olay tipi ve zaman damgasını Flutter tarafına iletir.
 - Mesaj içeriği, fotoğraflar, mikrofon, kişiler, tuş vuruşları veya özel iletişim içeriği okunmaz.
 - Flutter tarafı foreground/background olaylarını oturumlara dönüştürerek günlük toplam kullanım, seçili sosyal uygulama kullanımı, hassas saat kullanımı, takip edilen uygulama oturum sayısı ve kişisel hedef aşımını üretir.
-- Oturum sayısı ve ortalama oturum süresi yalnızca kullanıcının değerlendirme için seçtiği paketler üzerinden hesaplanır; launcher/sistem foreground geçişleri bu metrikleri şişirmez.
+- Oturum metriği yalnızca kullanıcının seçtiği paketlerden üretilir. Android'in aynı uygulama içinde kısa aralıklarla oluşturabildiği foreground/background parçalanmalarını kullanıcı oturumu olarak aşırı saymamak için aynı paketin 30 saniye veya daha kısa aralıkla ayrılan kullanım parçaları tek davranışsal oturum olarak gruplanır.
+- Oturum normalizasyonu toplam ekran süresi, sosyal kullanım süresi veya gece kullanım süresini yapay olarak azaltmak için kullanılmaz; bu süre metrikleri UsageStats olaylarından ayrı olarak hesaplanmaya devam eder.
 - Bugünün eksik verisi yerine son 14 **tamamlanmış** gün kullanılır: ilk 7 gün baseline kalibrasyonu, son 7 gün mevcut değerlendirme penceresi olarak ayrılır.
 
 İlk MVP'deki sosyal uygulama paket listesi mühendislik amaçlı başlangıç sınıflandırmasıdır; klinik bir sınıflandırma değildir. Kullanıcı değerlendirmeye dahil edilecek uygulamaları onboarding sırasında seçer.
@@ -74,7 +75,9 @@ APK kurulumu
 → geçmiş/eğilim görünümü
 ```
 
-Cihaz testinde gerçek günlük toplam ekran süresi, seçili sosyal uygulama süresi, gece kullanımı, hedef aşımı ve veri bütünlüğü alanlarının gün bazında üretildiği doğrulandı. Test sırasında tüm uygulama foreground geçişlerini sayan eski oturum metriğinin aşırı yüksek değer üretebildiği gözlendi; metrik takip edilen uygulamalarla sınırlandırılarak düzeltildi.
+İlk cihaz testinde oturum sayıları 600–880 bandındaydı. Yalnızca seçili paketlerle sınırlandırma tek başına yeterli olmadı. İkinci düzeltmede kısa foreground/background parçalanmaları aynı paket içinde normalize edildi ve temiz kurulumla yapılan gerçek cihaz tekrar testinde aynı tarihlerin oturum sayıları 33–59 bandına indi. Örneğin 29.08.2026 tarihinde sosyal kullanım 104 dk olarak korunurken oturum sayısı 685'ten 33'e düştü. Bu sonuç, düzeltmenin süreyi yapay olarak azaltmak yerine olay parçalanmasını oturum düzeyinde normalize ettiğini desteklemektedir.
+
+27.08 ve 30.08 tarihli tekrar ölçümlerinde bazı süre alanları ilk koşudan farklı görüldüğü için bu iki gün ayrıca veri-tekrarlanabilirliği incelemesine ayrılmıştır; bu farklılık session-count düzeltmesinin başarı ölçütü olarak kullanılmamıştır.
 
 Ayrıntılı doğrulama kaydı için `docs/real-device-validation-2026-09-03.md` dosyasına bakın.
 
@@ -151,4 +154,4 @@ Demo/Device Data
 → History
 ```
 
-Bu zincir 03.09.2026 tarihinde gerçek Android cihaz üzerinde uçtan uca doğrulanmıştır.
+Bu zincir 03.09.2026 tarihinde gerçek Android cihaz üzerinde uçtan uca doğrulanmıştır. UsageStats oturum normalizasyonu da temiz kurulum sonrası fiziksel cihaz tekrar testiyle doğrulanmıştır.
