@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'data/models/daily_feature_snapshot.dart';
 import 'features/usage_collector/android_usage_stats_collector.dart';
 import 'features/usage_collector/demo_data_provider.dart';
+import 'features/usage_collector/tracked_app_catalog.dart';
 import 'hybrid/hybrid_risk_engine.dart';
 import 'hybrid/hybrid_risk_result.dart';
 import 'escape/rule_based_escape_window_engine.dart';
@@ -11,6 +12,7 @@ import 'interventions/intervention_models.dart';
 import 'ui/dashboard/dashboard_screen.dart';
 import 'ui/history/history_screen.dart';
 import 'ui/intervention/intervention_screen.dart';
+import 'ui/onboarding/app_selection_screen.dart';
 import 'ui/onboarding/goal_setup_screen.dart';
 import 'ui/onboarding/onboarding_screen.dart';
 import 'ui/onboarding/usage_permission_screen.dart';
@@ -48,23 +50,13 @@ class _AppFlowState extends State<_AppFlow> {
   static const _hybridEngine = HybridRiskEngine();
   static const _usageCollector = AndroidUsageStatsCollector();
 
-  // MVP category map. This is an engineering classification, not a clinical
-  // statement. A later UI will let the user review/select tracked app packages.
-  static const Set<String> _defaultSocialPackages = {
-    'com.instagram.android',
-    'com.zhiliaoapp.musically',
-    'com.google.android.youtube',
-    'com.twitter.android',
-    'com.facebook.katana',
-    'com.snapchat.android',
-    'com.reddit.frontpage',
-  };
-
   bool consentCompleted = false;
   bool usagePermissionCompleted = false;
+  bool appSelectionCompleted = false;
   bool goalCompleted = false;
   bool useDemoData = false;
   double dailyLimitMinutes = 120;
+  Set<String> trackedPackages = {...TrackedAppCatalog.defaultPackages};
   Future<_EvaluationBundle>? _evaluationFuture;
 
   @override
@@ -79,6 +71,17 @@ class _AppFlowState extends State<_AppFlow> {
       return UsagePermissionScreen(
         collector: _usageCollector,
         onGranted: () => setState(() => usagePermissionCompleted = true),
+      );
+    }
+
+    if (!appSelectionCompleted) {
+      return AppSelectionScreen(
+        initialSelection: trackedPackages,
+        onSaved: (selection) => setState(() {
+          trackedPackages = selection;
+          appSelectionCompleted = true;
+          _evaluationFuture = null;
+        }),
       );
     }
 
@@ -200,6 +203,12 @@ class _AppFlowState extends State<_AppFlow> {
       );
     }
 
+    if (trackedPackages.isEmpty) {
+      throw const UsageStatsUnavailableException(
+        'Değerlendirme için en az bir takip uygulaması seçilmelidir.',
+      );
+    }
+
     // Use fourteen completed days so today's partial data does not distort
     // completeness. First 7 days calibrate personal baseline; last 7 are the
     // current evaluation window.
@@ -213,7 +222,7 @@ class _AppFlowState extends State<_AppFlow> {
         await _usageCollector.collectDay(
           day: day,
           userDailyLimitMinutes: dailyLimitMinutes,
-          trackedSocialPackages: _defaultSocialPackages,
+          trackedSocialPackages: trackedPackages,
         ),
       );
     }
@@ -226,7 +235,11 @@ class _AppFlowState extends State<_AppFlow> {
       userDailyLimitMinutes: dailyLimitMinutes,
     );
 
-    return _EvaluationBundle(result: result, recentHistory: recent, source: 'android_usage_stats');
+    return _EvaluationBundle(
+      result: result,
+      recentHistory: recent,
+      source: 'android_usage_stats',
+    );
   }
 
   void _openIntervention(BuildContext context, HybridRiskResult result) {
@@ -273,9 +286,11 @@ class _AppFlowState extends State<_AppFlow> {
     setState(() {
       consentCompleted = false;
       usagePermissionCompleted = false;
+      appSelectionCompleted = false;
       goalCompleted = false;
       useDemoData = false;
       dailyLimitMinutes = 120;
+      trackedPackages = {...TrackedAppCatalog.defaultPackages};
       _evaluationFuture = null;
     });
   }
