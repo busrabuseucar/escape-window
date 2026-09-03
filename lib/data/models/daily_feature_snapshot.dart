@@ -18,6 +18,10 @@ class DailyFeatureSnapshot {
     this.legacyTotalScreenTimeMinutes = 0,
     this.legacySocialMediaTimeMinutes = 0,
     this.legacyTrackedIntervalCount = 0,
+    this.legacyTrackedPackageMinutes = const {},
+    this.duplicateForegroundCount = 0,
+    this.trackedDuplicateForegroundCount = 0,
+    this.duplicateForegroundByPackage = const {},
   });
 
   final DateTime date;
@@ -47,4 +51,12 @@ class DailyFeatureSnapshot {
   final double legacyTotalScreenTimeMinutes;
   final double legacySocialMediaTimeMinutes;
   final int legacyTrackedIntervalCount;
+  final Map<String, double> legacyTrackedPackageMinutes;
+
+  /// Foreground events received while the same package is already marked as
+  /// foreground. These events are the exact condition where legacy and fixed
+  /// pairing semantics can diverge.
+  final int duplicateForegroundCount;
+  final int trackedDuplicateForegroundCount;
+  final Map<String, int> duplicateForegroundByPackage;
 }
