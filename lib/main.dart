@@ -49,9 +49,6 @@ class _AppFlowState extends State<_AppFlow> {
   double dailyLimitMinutes = 120;
   Future<HybridRiskResult>? _hybridFuture;
 
-  List get _calibrationHistory => _demoProvider.normalScenario();
-  List get _recentHistory => _demoProvider.persistentRiskScenario();
-
   @override
   Widget build(BuildContext context) {
     if (!consentCompleted) {
