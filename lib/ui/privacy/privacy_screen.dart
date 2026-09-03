@@ -1,12 +1,18 @@
 import 'package:flutter/material.dart';
 
+import '../onboarding/app_selection_screen.dart';
+
 class PrivacyScreen extends StatefulWidget {
   const PrivacyScreen({
     super.key,
     required this.onDeleteLocalDemoData,
+    required this.trackedPackages,
+    required this.onTrackedPackagesChanged,
   });
 
   final VoidCallback onDeleteLocalDemoData;
+  final Set<String> trackedPackages;
+  final ValueChanged<Set<String>> onTrackedPackagesChanged;
 
   @override
   State<PrivacyScreen> createState() => _PrivacyScreenState();
@@ -15,6 +21,13 @@ class PrivacyScreen extends StatefulWidget {
 class _PrivacyScreenState extends State<PrivacyScreen> {
   bool interventionsEnabled = true;
   bool researchSharingEnabled = false;
+  late Set<String> trackedPackages;
+
+  @override
+  void initState() {
+    super.initState();
+    trackedPackages = {...widget.trackedPackages};
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -59,6 +72,22 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
             ),
             const Divider(height: 32),
             ListTile(
+              leading: const Icon(Icons.apps_outlined),
+              title: const Text('Takip edilen uygulamalar'),
+              subtitle: Text(
+                '${trackedPackages.length} uygulama değerlendirmeye dahil ediliyor.',
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: _editTrackedApps,
+            ),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                'Bu seçim değiştiğinde risk değerlendirmesi yeni uygulama kümesiyle yeniden hesaplanır. Bir uygulamayı listeden çıkarmak tek başına risk puanını yükseltmez.',
+              ),
+            ),
+            const SizedBox(height: 10),
+            ListTile(
               leading: const Icon(Icons.lock_outline),
               title: const Text('Toplanmayan veriler'),
               subtitle: const Text(
@@ -83,10 +112,25 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
             ),
             const SizedBox(height: 10),
             Text(
-              'Not: Bu ekrandaki tercihler şu aşamada MVP arayüz kontrolleridir. Kalıcı cihaz depolama ve gerçek izin yönetimi Android entegrasyonu sırasında bağlanacaktır.',
+              'Not: Uygulama seçimi artık değerlendirme hattına bağlıdır. Mikro müdahale ve araştırma paylaşımı anahtarlarının kalıcı cihaz depolaması sonraki MVP adımıdır.',
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _editTrackedApps() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => AppSelectionScreen(
+          initialSelection: trackedPackages,
+          onSaved: (selection) {
+            setState(() => trackedPackages = {...selection});
+            widget.onTrackedPackagesChanged({...selection});
+            Navigator.of(context).pop();
+          },
         ),
       ),
     );
