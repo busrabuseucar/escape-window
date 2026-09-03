@@ -176,6 +176,8 @@ class _AppFlowState extends State<_AppFlow> {
               MaterialPageRoute(
                 builder: (_) => PrivacyScreen(
                   onDeleteLocalDemoData: _resetState,
+                  trackedPackages: trackedPackages,
+                  onTrackedPackagesChanged: _updateTrackedPackages,
                 ),
               ),
             );
@@ -240,6 +242,13 @@ class _AppFlowState extends State<_AppFlow> {
       recentHistory: recent,
       source: 'android_usage_stats',
     );
+  }
+
+  void _updateTrackedPackages(Set<String> selection) {
+    setState(() {
+      trackedPackages = {...selection};
+      _evaluationFuture = _evaluate();
+    });
   }
 
   void _openIntervention(BuildContext context, HybridRiskResult result) {
