@@ -77,7 +77,7 @@ APK kurulumu
 
 İlk cihaz testinde oturum sayıları 600–880 bandındaydı. Yalnızca seçili paketlerle sınırlandırma tek başına yeterli olmadı. İkinci düzeltmede kısa foreground/background parçalanmaları aynı paket içinde normalize edildi ve temiz kurulumla yapılan gerçek cihaz tekrar testinde aynı tarihlerin oturum sayıları 33–59 bandına indi. Örneğin 29.08.2026 tarihinde sosyal kullanım 104 dk olarak korunurken oturum sayısı 685'ten 33'e düştü. Bu sonuç, düzeltmenin süreyi yapay olarak azaltmak yerine olay parçalanmasını oturum düzeyinde normalize ettiğini desteklemektedir.
 
-27.08 ve 30.08 tarihli tekrar ölçümlerinde bazı süre alanları ilk koşudan farklı görüldüğü için bu iki gün ayrıca veri-tekrarlanabilirliği incelemesine ayrılmıştır; bu farklılık session-count düzeltmesinin başarı ölçütü olarak kullanılmamıştır.
+27.08 ve 30.08 tarihli süre farklarının kök nedeni fiziksel cihaz tanılama sürümünde aynı ham event seti üzerinde doğrulandı: bazı Instagram akışlarında yinelenen foreground olayı ilk başlangıcı koruyan eşleştirmede süreyi yapay olarak uzatıyordu. Final MVP süre hesabı en son foreground zaman damgasını kullanır; oturum sayısı ise bundan bağımsız olarak 30 saniyelik aynı-paket normalizasyonundan geçirilir. Böylece süre metrikleri eski doğru seviyelerine dönerken davranışsal oturum sayısı 33–59 bandında korunur.
 
 Ayrıntılı doğrulama kaydı için `docs/real-device-validation-2026-09-03.md` dosyasına bakın.
 
@@ -154,4 +154,4 @@ Demo/Device Data
 → History
 ```
 
-Bu zincir 03.09.2026 tarihinde gerçek Android cihaz üzerinde uçtan uca doğrulanmıştır. UsageStats oturum normalizasyonu da temiz kurulum sonrası fiziksel cihaz tekrar testiyle doğrulanmıştır.
+Bu zincir 03–04.09.2026 tarihlerinde gerçek Android cihaz üzerinde uçtan uca doğrulanmıştır. UsageStats süre eşleştirmesi ve oturum normalizasyonu ayrı regresyon testleriyle sabitlenmiş, kullanıcı arayüzündeki tanılama alanları final MVP sürümünden kaldırılmıştır.
