@@ -16,9 +16,9 @@ class DermRuleConfig {
     this.personalDeviationWatchZ = 1.0,
   });
 
-  /// Provisional engineering settings for MVP behavior only.
-  /// They are not clinical thresholds and must be validated before any
-  /// clinical or diagnostic interpretation.
+  /// Pre-registered pilot engineering settings. They are intentionally kept
+  /// separate from clinical claims and must not be changed mid-pilot after
+  /// outcome data are inspected.
   final double watchComponentThreshold;
   final double elevatedComponentThreshold;
   final double personalDeviationWatchZ;
@@ -34,7 +34,7 @@ class RuleBasedDermEngine implements DermEngine {
     this.confidenceEngine = const ConfidenceEngine(),
   });
 
-  static const version = 'derm-rule-v0.1.1';
+  static const version = 'derm-rule-v0.2.0-pilot';
 
   final DermRuleConfig config;
   final BpiCalculator bpiCalculator;
@@ -71,7 +71,10 @@ class RuleBasedDermEngine implements DermEngine {
     }
 
     final bpi = bpiCalculator.calculate(recentFeatures);
-    final srfi = srfiCalculator.calculate(recentFeatures);
+    final srfi = srfiCalculator.calculate(
+      recentFeatures,
+      userDailyLimitMinutes: userDailyLimitMinutes,
+    );
     final cvl = cvlCalculator.calculate(recentFeatures);
     final pbd = _calculatePbd(recentFeatures, baselineProfiles);
 
@@ -91,11 +94,12 @@ class RuleBasedDermEngine implements DermEngine {
         .toList();
 
     final baselineReliable = baselineProfiles.any(
-      (profile) => profile.state == BaselineState.stable && profile.confidence >= 0.5,
+      (profile) =>
+          profile.state == BaselineState.stable && profile.confidence >= 0.5,
     );
 
-    // Cold-start guardrail: repeated self-regulation failure and persistence
-    // cannot be dismissed merely because a stable personal baseline is absent.
+    // Cold-start guardrail. Repeated and meaningful self-regulation failure
+    // remains visible even before a trustworthy personal baseline exists.
     final safetyFlag = !baselineReliable &&
         bpi >= config.watchComponentThreshold &&
         srfi >= config.watchComponentThreshold;
@@ -108,6 +112,8 @@ class RuleBasedDermEngine implements DermEngine {
 
     RiskLevel level;
     if (elevatedDrivers.length >= 2) {
+      // ELEVATED requires convergence of at least two independent core signals.
+      // PBD never counts toward this gate.
       level = RiskLevel.elevated;
     } else if (watchDrivers.isNotEmpty || safetyFlag) {
       level = RiskLevel.watch;
@@ -144,15 +150,21 @@ class RuleBasedDermEngine implements DermEngine {
     final matching = baselineProfiles.where(
       (profile) => profile.featureName == 'social_media_time',
     );
-    if (matching.isEmpty) return 0;
+    if (matching.isEmpty || recentFeatures.isEmpty) return 0;
 
     final baseline = matching.first;
-    final latest = recentFeatures.reduce(
-      (a, b) => a.date.isAfter(b.date) ? a : b,
-    );
+    final measurable = recentFeatures
+        .where((day) => day.dataCompleteness > 0)
+        .toList(growable: false);
+    if (measurable.isEmpty) return 0;
+
+    final recentMean = measurable
+            .map((day) => day.socialMediaTimeMinutes)
+            .reduce((a, b) => a + b) /
+        measurable.length;
 
     return pbdCalculator.calculate(
-      currentValue: latest.socialMediaTimeMinutes,
+      currentValue: recentMean,
       baselineMean: baseline.mean,
       baselineStandardDeviation: baseline.standardDeviation,
     );
@@ -172,16 +184,16 @@ class RuleBasedDermEngine implements DermEngine {
 
     final reasons = <String>[];
     if (srfi >= config.watchComponentThreshold) {
-      reasons.add('kendi belirlediğin kullanım sınırı son günlerde tekrar tekrar aşıldı');
+      reasons.add('kendi belirlediğin kullanım sınırı anlamlı miktarda aşıldı');
     }
     if (bpi >= config.watchComponentThreshold) {
-      reasons.add('bu örüntü birden fazla güne yayıldı');
+      reasons.add('sınır aşımı örüntüsü birden fazla güne ve ardışık günlere yayıldı');
     }
     if (cvl >= config.watchComponentThreshold) {
-      reasons.add('gece kullanımında bağlamsal hassasiyet sinyali görüldü');
+      reasons.add('kullanımın önemli bir bölümü hassas/gece saatlerinde gerçekleşti');
     }
     if (pbd >= config.personalDeviationWatchZ) {
-      reasons.add('kullanımın kişisel olağan düzeyinden sapma gösterdi');
+      reasons.add('son dönem kullanımın kişisel olağan düzeyinin üzerine çıktı');
     }
     if (safetyFlag) {
       reasons.add('kişisel baseline henüz yeterince güvenilir olmadığı için güvenlik katmanı devrede');
