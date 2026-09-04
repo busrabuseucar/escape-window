@@ -324,7 +324,9 @@ class _AppFlowState extends State<_AppFlow> {
             );
 
             if (!context.mounted) return;
-            Navigator.of(context).pop();
+            if (response != InterventionResponse.noResponse) {
+              Navigator.of(context).pop();
+            }
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text(_responseMessage(response))),
             );
