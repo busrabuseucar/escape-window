@@ -10,7 +10,7 @@ class DemoDataProvider {
       );
 
   List<DailyFeatureSnapshot> persistentRiskScenario() => _buildScenario(
-        socialMinutes: [110, 115, 145, 170, 190, 205, 215],
+        socialMinutes: [110, 115, 200, 240, 260, 280, 300],
         nightMinutes: [12, 14, 35, 48, 60, 72, 80],
         limitExceedances: [0, 0, 1, 1, 1, 1, 1],
       );
