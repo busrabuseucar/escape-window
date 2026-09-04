@@ -1,121 +1,121 @@
 # ESCAPE Window AI V2
 
-**Kişiselleştirilmiş Erken Risk ve Müdahale Sistemi**
+**Kişiselleştirilmiş Erken Risk ve Mikro-Müdahale Sistemi**
 
-ESCAPE Window AI, 18–24 yaş üniversite çağındaki kullanıcıların problemli akıllı telefon / sosyal medya kullanımına doğru gelişebilecek öz-düzenleme kaybını erken aşamada değerlendirmeyi amaçlayan, açıklanabilir ve privacy-by-design bir MVP'dir.
+ESCAPE Window AI, 18–24 yaş üniversite çağındaki kullanıcıların problemli akıllı telefon ve sosyal medya kullanımına doğru gelişebilecek öz-düzenleme kaybını erken aşamada değerlendirmek için geliştirilen Android-first, açıklanabilir ve privacy-by-design bir Flutter MVP'sidir.
 
-> Bu proje klinik tanı veya tedavi sistemi değildir. Davranışsal ve bağlamsal risk göstergelerini değerlendirir ve uygun olduğunda düşük yoğunluklu bir erken müdahale penceresi üretir.
+> **Durum: MVP v0.1.0 — gerçek Android cihazda uçtan uca doğrulandı.**  
+> Klinik tanı veya tedavi sistemi değildir; davranışsal ve bağlamsal risk göstergelerini değerlendirir.
 
-## MVP İlkeleri
+## Neden ESCAPE?
 
-- Android-first, local-first
-- Veri minimizasyonu
-- Açıklanabilir kural tabanlı risk motoru
-- Risk ve güven düzeyinin ayrı değerlendirilmesi
-- Kişisel baseline tek başına karar vermez
-- Riskli dönemler baseline'a otomatik olarak dahil edilmez
-- Serbest üretken yapay zekâ ile psikolojik tavsiye üretilmez
-- Klinik tanı iddiası yoktur
+Sadece “bugün kaç saat telefona baktın?” demek yeterli değil. ESCAPE, kullanıcının kendi geçmişini kişisel baseline olarak ele alır; süreklilik, hedef aşımı ve hassas saat kullanımı gibi sinyalleri birlikte değerlendirir ve gerektiğinde düşük yoğunluklu bir müdahale penceresi açar.
 
-## Çekirdek Akış
+## Çalışan MVP Akışı
 
 ```text
-Android UsageStats / Demo Data
-   ↓
+Açık rıza
+→ Android Usage Access
+→ Takip edilecek uygulamaların seçimi
+→ 14 tamamlanmış günlük UsageStats verisi
+→ DailyFeatureSnapshot
+→ Personal Baseline
+→ DERM
+→ Risk + Confidence + Explanation
+→ ESCAPE Window
+→ Mikro-müdahale
+→ Kullanıcı yanıtı
+→ Geçmiş ve eğilim
+```
+
+## Doğrulanmış Durum
+
+03–04.09.2026 fiziksel Android cihaz testlerinde:
+
+- Usage Access izin akışı çalıştı.
+- Geçmiş UsageStats olayları gerçek cihazdan okundu.
+- 14 günlük baseline/değerlendirme penceresi işlendi.
+- Açıklanabilir risk ve güven çıktısı üretildi.
+- ESCAPE mikro-müdahalesi kullanıcıya sunuldu ve kabul akışı çalıştı.
+- Geçmiş/eğilim ekranı gerçek günlük metrikleri gösterdi.
+- Android event parçalanmasının şişirdiği oturum sayıları 30 saniyelik aynı-paket normalizasyonuyla düzeltildi.
+- Instagram'daki yinelenen foreground olayının süreyi +88/+129 dakika şişirebildiği kök neden testiyle bulundu ve regresyon testiyle sabitlendi.
+- Kullanıcıya dönük final ekrandan tüm UsageStats debug/tanılama alanları kaldırıldı.
+
+Ayrıntılı mühendislik kaydı: `docs/real-device-validation-2026-09-03.md`.
+
+## CI / Kalite Kapısı
+
+PR doğrulama zinciri:
+
+```text
+flutter pub get
+→ flutter analyze
+→ flutter test
+→ flutter build apk --debug
+→ APK artifact
+```
+
+Final MVP değişiklikleri bu zincirden başarıyla geçti ve `main` dalına alındı. UsageStats duration pairing ve session normalization için ayrı regresyon testleri bulunur.
+
+## Mimari
+
+```text
+Android UsageStats
+      ↓
 DailyFeatureSnapshot
-   ↓
+      ↓
 Feature Engine
-   ↓
+      ↓
 Baseline Engine (PBD)
-   ↓
+      ↓
 DERM (BPI + SRFI + CVL + Safety)
-   ↓
+      ↓
 Risk + Confidence + Explanation
-   ↓
+      ↓
 ESCAPE Window
-   ↓
+      ↓
 Micro Intervention
-   ↓
+      ↓
 Outcome Tracking
 ```
 
-## Android UsageStats Entegrasyonu
+### DERM
 
-MVP Android `UsageStatsManager` ile gerçek cihaz kullanım olaylarını okuyan bir MethodChannel katmanı içerir.
-
-- Kullanıcı önce açık rıza verir.
-- Ardından Android'in **Kullanım erişimi** ayar ekranına yönlendirilir.
-- İzin verilmeden kullanım verisi okunmaz.
-- Native katman yalnızca uygulama paketi, foreground/background olay tipi ve zaman damgasını Flutter tarafına iletir.
-- Mesaj içeriği, fotoğraflar, mikrofon, kişiler, tuş vuruşları veya özel iletişim içeriği okunmaz.
-- Flutter tarafı foreground/background olaylarını oturumlara dönüştürerek günlük toplam kullanım, seçili sosyal uygulama kullanımı, hassas saat kullanımı, takip edilen uygulama oturum sayısı ve kişisel hedef aşımını üretir.
-- Oturum metriği yalnızca kullanıcının seçtiği paketlerden üretilir. Android'in aynı uygulama içinde kısa aralıklarla oluşturabildiği foreground/background parçalanmalarını kullanıcı oturumu olarak aşırı saymamak için aynı paketin 30 saniye veya daha kısa aralıkla ayrılan kullanım parçaları tek davranışsal oturum olarak gruplanır.
-- Oturum normalizasyonu toplam ekran süresi, sosyal kullanım süresi veya gece kullanım süresini yapay olarak azaltmak için kullanılmaz; bu süre metrikleri UsageStats olaylarından ayrı olarak hesaplanmaya devam eder.
-- Bugünün eksik verisi yerine son 14 **tamamlanmış** gün kullanılır: ilk 7 gün baseline kalibrasyonu, son 7 gün mevcut değerlendirme penceresi olarak ayrılır.
-
-İlk MVP'deki sosyal uygulama paket listesi mühendislik amaçlı başlangıç sınıflandırmasıdır; klinik bir sınıflandırma değildir. Kullanıcı değerlendirmeye dahil edilecek uygulamaları onboarding sırasında seçer.
-
-### Gerçek cihaz doğrulaması — 03.09.2026
-
-Android debug APK gerçek bir Android cihazda uçtan uca doğrulandı. Başarıyla test edilen zincir:
-
-```text
-APK kurulumu
-→ açık rıza
-→ Android Usage Access ayarına yönlendirme
-→ izin dönüşünün otomatik algılanması
-→ takip edilecek uygulamaların seçimi
-→ geçmiş UsageStats olaylarının okunması
-→ 14 tamamlanmış günlük pencerenin işlenmesi
-→ DailyFeatureSnapshot
-→ baseline + DERM değerlendirmesi
-→ açıklanabilir risk ekranı
-→ ESCAPE müdahale penceresi
-→ müdahalenin kullanıcı tarafından kabul edilmesi
-→ geçmiş/eğilim görünümü
-```
-
-İlk cihaz testinde oturum sayıları 600–880 bandındaydı. Yalnızca seçili paketlerle sınırlandırma tek başına yeterli olmadı. İkinci düzeltmede kısa foreground/background parçalanmaları aynı paket içinde normalize edildi ve temiz kurulumla yapılan gerçek cihaz tekrar testinde aynı tarihlerin oturum sayıları 33–59 bandına indi. Örneğin 29.08.2026 tarihinde sosyal kullanım 104 dk olarak korunurken oturum sayısı 685'ten 33'e düştü. Bu sonuç, düzeltmenin süreyi yapay olarak azaltmak yerine olay parçalanmasını oturum düzeyinde normalize ettiğini desteklemektedir.
-
-27.08 ve 30.08 tarihli süre farklarının kök nedeni fiziksel cihaz tanılama sürümünde aynı ham event seti üzerinde doğrulandı: bazı Instagram akışlarında yinelenen foreground olayı ilk başlangıcı koruyan eşleştirmede süreyi yapay olarak uzatıyordu. Final MVP süre hesabı en son foreground zaman damgasını kullanır; oturum sayısı ise bundan bağımsız olarak 30 saniyelik aynı-paket normalizasyonundan geçirilir. Böylece süre metrikleri eski doğru seviyelerine dönerken davranışsal oturum sayısı 33–59 bandında korunur.
-
-Ayrıntılı doğrulama kaydı için `docs/real-device-validation-2026-09-03.md` dosyasına bakın.
-
-## DERM
-
-DERM (Davranışsal Erken Risk Modeli) proje kapsamında geliştirilen açıklanabilir erken-risk değerlendirme motorudur.
+DERM (**Davranışsal Erken Risk Modeli**) açıklanabilir erken-risk değerlendirme motorudur.
 
 - **BPI — Behavioral Persistence Index:** risk örüntüsünün zamansal sürekliliği
-- **SRFI — Self-Regulation Failure Index:** kullanıcının kendi koyduğu sınırların tekrar eden ihlali
+- **SRFI — Self-Regulation Failure Index:** kullanıcının kendi sınırlarının tekrar eden ihlali
 - **CVL — Contextual Vulnerability Level:** gece kullanımı gibi bağlamsal hassasiyet göstergeleri
 - **PBD — Personal Baseline Deviation:** bağımsız risk bileşeni değil, kişiselleştirme/kalibrasyon katmanı
 
-İlk MVP'de ağırlıklar klinik olarak doğrulanmış kabul edilmez. Model doğrulanmamış bir 'AI risk skoru' üretmek yerine açıklanabilir kurallar ve sürümlenmiş karar mantığı kullanır.
+İlk MVP ağırlıkları klinik olarak doğrulanmış kabul edilmez. Sistem doğrulanmamış bir “AI teşhis skoru” yerine sürümlenebilir ve açıklanabilir karar mantığı kullanır.
 
-## Risk Çıktıları
+## Privacy-by-Design
 
-- `LOW`
-- `WATCH`
-- `ELEVATED`
-- `INSUFFICIENT_DATA`
+- Kullanıcı açık rıza vermeden UsageStats okunmaz.
+- Yalnızca uygulama paketi, foreground/background olay tipi ve zaman damgası işlenir.
+- Mesaj içeriği, fotoğraf, mikrofon, kişi listesi, tuş vuruşu veya özel iletişim içeriği okunmaz.
+- Kullanıcı değerlendirmeye dahil edilecek uygulamaları kendisi seçer.
+- Local-first ve veri minimizasyonu yaklaşımı izlenir.
 
-## ESCAPE Window Durumları
+## Risk ve Sistem Durumları
 
-- `CLOSED`
-- `OBSERVING`
-- `ACTIVE`
-- `COOLDOWN`
+**Risk:** `LOW`, `WATCH`, `ELEVATED`, `INSUFFICIENT_DATA`
 
-## Baseline Durumları
+**ESCAPE Window:** `CLOSED`, `OBSERVING`, `ACTIVE`, `COOLDOWN`
 
-- `CALIBRATING`
-- `STABLE`
-- `FROZEN`
-- `RECALIBRATING`
+**Baseline:** `CALIBRATING`, `STABLE`, `FROZEN`, `RECALIBRATING`
 
-## MVP Kapsam Dışı
+## 2–3 Dakikalık Demo Senaryosu
 
-Chatbot, sosyal ağ, oyunlaştırma, ebeveyn/kurum paneli, klinik teşhis, serbest GenAI psikolojik tavsiyesi, çoklu bağımlılık türleri ve doğrulanmamış ML modeli ilk MVP kapsamına dahil değildir.
+1. **0:00–0:20 — Problem:** ESCAPE'in yalnızca ekran süresini değil, kişisel davranış örüntüsünü değerlendirdiğini anlat.
+2. **0:20–0:45 — Rıza ve veri:** Usage Access ve kullanıcının takip edeceği uygulamaları kendisinin seçtiğini göster.
+3. **0:45–1:20 — Risk:** Dashboard'da risk, güven ve açıklanabilir nedenleri göster; DERM'in tanı koymadığını belirt.
+4. **1:20–1:50 — Müdahale:** ESCAPE Window'u aç ve önerilen mikro-müdahalenin neden tetiklendiğini göster.
+5. **1:50–2:15 — Sonuç:** Müdahaleyi kabul et ve outcome tracking akışını göster.
+6. **2:15–2:40 — Kanıt:** Geçmiş/eğilim ekranında gerçek UsageStats günlük metriklerini göster.
+7. **2:40–3:00 — Teknik kapanış:** Gerçek cihaz doğrulaması, CI, regresyon testleri ve privacy-by-design yaklaşımını özetle.
 
 ## Proje Yapısı
 
@@ -137,21 +137,18 @@ test/
 ├── baseline/
 ├── derm/
 ├── escape/
+├── features/
 └── scenarios/
+docs/
+└── real-device-validation-2026-09-03.md
 ```
 
-## MVP Definition of Done
+## MVP Kapsam Dışı
 
-```text
-Demo/Device Data
-→ Feature Engine
-→ Baseline Engine
-→ DERM
-→ Risk + Confidence + Explanation
-→ ESCAPE Window
-→ Micro Intervention
-→ User Response
-→ History
-```
+Chatbot, sosyal ağ, oyunlaştırma, ebeveyn/kurum paneli, klinik teşhis, serbest GenAI psikolojik tavsiyesi, çoklu bağımlılık türleri ve doğrulanmamış ML modeli ilk MVP kapsamına dahil değildir.
 
-Bu zincir 03–04.09.2026 tarihlerinde gerçek Android cihaz üzerinde uçtan uca doğrulanmıştır. UsageStats süre eşleştirmesi ve oturum normalizasyonu ayrı regresyon testleriyle sabitlenmiş, kullanıcı arayüzündeki tanılama alanları final MVP sürümünden kaldırılmıştır.
+## Sürüm
+
+`0.1.0+1` — gerçek cihazda doğrulanmış ilk çalışan MVP.
+
+Bir sonraki ürün aşaması; kontrollü pilot veri toplama, DERM eşik/ağırlık kalibrasyonu, UX iyileştirmeleri ve araştırma protokolüdür.
