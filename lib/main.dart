@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'data/models/daily_feature_snapshot.dart';
@@ -7,8 +9,10 @@ import 'features/usage_collector/tracked_app_catalog.dart';
 import 'hybrid/hybrid_risk_engine.dart';
 import 'hybrid/hybrid_risk_result.dart';
 import 'escape/rule_based_escape_window_engine.dart';
+import 'interventions/cooldown_policy.dart';
 import 'interventions/intervention_engine.dart';
 import 'interventions/intervention_models.dart';
+import 'interventions/intervention_outcome_store.dart';
 import 'ui/dashboard/dashboard_screen.dart';
 import 'ui/history/history_screen.dart';
 import 'ui/intervention/intervention_screen.dart';
@@ -49,6 +53,8 @@ class _AppFlowState extends State<_AppFlow> {
   static const _demoProvider = DemoDataProvider();
   static const _hybridEngine = HybridRiskEngine();
   static const _usageCollector = AndroidUsageStatsCollector();
+  static const _cooldownPolicy = CooldownPolicy();
+  static const _interventionStore = SharedPreferencesInterventionOutcomeStore();
 
   bool consentCompleted = false;
   bool usagePermissionCompleted = false;
@@ -251,17 +257,29 @@ class _AppFlowState extends State<_AppFlow> {
     });
   }
 
-  void _openIntervention(BuildContext context, HybridRiskResult result) {
+  Future<void> _openIntervention(
+    BuildContext context,
+    HybridRiskResult result,
+  ) async {
     const escapeEngine = RuleBasedEscapeWindowEngine();
     const interventionEngine = DeterministicInterventionEngine();
 
     final assessment = result.assessment;
     final persistenceIsSufficient = assessment.bpi >= 0.40;
+    final now = DateTime.now();
+    final latestCooldownUntil =
+        await _interventionStore.latestCooldownUntil();
+    final cooldownActive = _cooldownPolicy.isCooldownActive(
+      now: now,
+      cooldownUntil: latestCooldownUntil,
+    );
+
+    if (!context.mounted) return;
 
     final decision = escapeEngine.evaluate(
       assessment: assessment,
       persistenceIsSufficient: persistenceIsSufficient,
-      cooldownActive: false,
+      cooldownActive: cooldownActive,
       interventionEligible: true,
     );
     final recommendation = interventionEngine.recommend(
@@ -276,11 +294,36 @@ class _AppFlowState extends State<_AppFlow> {
       return;
     }
 
+    final shownAt = DateTime.now();
+
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => InterventionScreen(
           recommendation: recommendation,
-          onResponse: (response) {
+          onResponse: (response) async {
+            final respondedAt = DateTime.now();
+            final cooldownUntil = _cooldownPolicy.cooldownUntil(
+              response: response,
+              respondedAt: respondedAt,
+            );
+
+            await _interventionStore.append(
+              InterventionOutcomeRecord(
+                id: '${shownAt.microsecondsSinceEpoch}-${recommendation.type.name}',
+                shownAt: shownAt,
+                respondedAt: respondedAt,
+                response: response,
+                cooldownUntil: cooldownUntil,
+                riskLevel: assessment.riskLevel,
+                confidence: assessment.confidence,
+                dermVersion: assessment.dermVersion,
+                interventionType: recommendation.type,
+                reason: recommendation.reason,
+                drivers: assessment.drivers,
+              ),
+            );
+
+            if (!context.mounted) return;
             Navigator.of(context).pop();
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text(_responseMessage(response))),
@@ -292,6 +335,7 @@ class _AppFlowState extends State<_AppFlow> {
   }
 
   void _resetState() {
+    unawaited(_interventionStore.clear());
     setState(() {
       consentCompleted = false;
       usagePermissionCompleted = false;
