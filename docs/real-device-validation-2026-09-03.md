@@ -73,9 +73,13 @@ The normalized values are therefore approximately 92–96% lower than the raw fr
 
 A particularly useful control observation was 29.08.2026: tracked social usage remained 104 minutes while session count changed from 685 to 33. Total screen time remained 207 minutes and sensitive-hour usage remained 3 minutes. This supports the interpretation that the correction addressed session fragmentation rather than simply reducing usage duration.
 
-### Reproducibility note
+### Duration-pairing investigation
 
-Some duration values for 27.08 and 30.08 differed between the first and clean-install retest, while several other dates remained stable or nearly stable. Those two dates require a separate UsageStats reproducibility investigation. They are not treated as evidence for or against the sessionization correction.
+A follow-up diagnostic build replayed the exact same raw UsageStats event set through both pairing semantics. This isolated algorithm behavior from Android query variability.
+
+On 30.08.2026 the old/desired duration pairing produced 296 total minutes and 162 tracked-social minutes, while the earliest-foreground-preserving variant produced 384 / 250 minutes. The entire +88 minute difference came from Instagram. On 27.08.2026 the corresponding difference was +129 minutes, again entirely attributable to Instagram.
+
+Both problem days contained one duplicate tracked foreground event for Instagram. Days without that condition remained unchanged or differed only by rounding-level noise. The final MVP therefore uses the most recent foreground timestamp for duration pairing, while keeping the 30-second same-package session normalization as a separate behavioral-session metric.
 
 The current DERM risk path does not directly consume `sessionCount`, so this correction primarily improves measurement semantics, history presentation and future feature reliability rather than artificially changing the current risk classification.
 
@@ -87,6 +91,14 @@ The tested bridge requested only Android Usage Access. The native payload contai
 
 **Physical-device MVP runtime chain: PASS**  
 **Tracked-app session normalization physical-device retest: PASS**  
-**27.08 / 30.08 duration reproducibility investigation: OPEN**
+**27.08 / 30.08 duration-pairing root cause: CLOSED / PASS**
 
 This is an engineering/runtime validation. Clinical validity, threshold calibration, behavioral outcome efficacy, demographic generalization and longitudinal reliability require separate pilot studies and validation protocols.
+
+
+## Final MVP cleanup — 04.09.2026
+
+- Diagnostic-only UsageStats fields were removed from the user-facing history screen.
+- Duration pairing was extracted into a pure helper and covered by a regression test for duplicate foreground events.
+- Session normalization remains independently covered by unit tests.
+- Final CI is required to pass static analysis, unit tests, and Android debug APK build before the cleaned MVP APK is distributed.
