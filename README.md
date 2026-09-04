@@ -41,19 +41,45 @@ Outcome Tracking
 
 ## Android UsageStats Entegrasyonu
 
-MVP artık Android `UsageStatsManager` ile gerçek cihaz kullanım olaylarını okuyabilecek bir MethodChannel katmanı içerir.
+MVP Android `UsageStatsManager` ile gerçek cihaz kullanım olaylarını okuyan bir MethodChannel katmanı içerir.
 
 - Kullanıcı önce açık rıza verir.
 - Ardından Android'in **Kullanım erişimi** ayar ekranına yönlendirilir.
 - İzin verilmeden kullanım verisi okunmaz.
 - Native katman yalnızca uygulama paketi, foreground/background olay tipi ve zaman damgasını Flutter tarafına iletir.
 - Mesaj içeriği, fotoğraflar, mikrofon, kişiler, tuş vuruşları veya özel iletişim içeriği okunmaz.
-- Flutter tarafı foreground/background olaylarını oturumlara dönüştürerek günlük toplam kullanım, seçili sosyal uygulama kullanımı, hassas saat kullanımı, oturum sayısı ve kişisel hedef aşımını üretir.
+- Flutter tarafı foreground/background olaylarını oturumlara dönüştürerek günlük toplam kullanım, seçili sosyal uygulama kullanımı, hassas saat kullanımı, takip edilen uygulama oturum sayısı ve kişisel hedef aşımını üretir.
+- Oturum metriği yalnızca kullanıcının seçtiği paketlerden üretilir. Android'in aynı uygulama içinde kısa aralıklarla oluşturabildiği foreground/background parçalanmalarını kullanıcı oturumu olarak aşırı saymamak için aynı paketin 30 saniye veya daha kısa aralıkla ayrılan kullanım parçaları tek davranışsal oturum olarak gruplanır.
+- Oturum normalizasyonu toplam ekran süresi, sosyal kullanım süresi veya gece kullanım süresini yapay olarak azaltmak için kullanılmaz; bu süre metrikleri UsageStats olaylarından ayrı olarak hesaplanmaya devam eder.
 - Bugünün eksik verisi yerine son 14 **tamamlanmış** gün kullanılır: ilk 7 gün baseline kalibrasyonu, son 7 gün mevcut değerlendirme penceresi olarak ayrılır.
 
-İlk MVP'deki sosyal uygulama paket listesi mühendislik amaçlı başlangıç sınıflandırmasıdır; klinik bir sınıflandırma değildir. Sonraki sürümde kullanıcının takip edilecek uygulamaları kendisinin seçebilmesi hedeflenmektedir.
+İlk MVP'deki sosyal uygulama paket listesi mühendislik amaçlı başlangıç sınıflandırmasıdır; klinik bir sınıflandırma değildir. Kullanıcı değerlendirmeye dahil edilecek uygulamaları onboarding sırasında seçer.
 
-> Not: GitHub bağlayıcısı Flutter/Android derleme ortamı çalıştırmadığı için repository'ye eklenen Android köprüsü burada runtime olarak doğrulanmış değildir. Gerçek cihazda `flutter analyze`, `flutter test` ve `flutter run` ile ayrıca doğrulanmalıdır.
+### Gerçek cihaz doğrulaması — 03.09.2026
+
+Android debug APK gerçek bir Android cihazda uçtan uca doğrulandı. Başarıyla test edilen zincir:
+
+```text
+APK kurulumu
+→ açık rıza
+→ Android Usage Access ayarına yönlendirme
+→ izin dönüşünün otomatik algılanması
+→ takip edilecek uygulamaların seçimi
+→ geçmiş UsageStats olaylarının okunması
+→ 14 tamamlanmış günlük pencerenin işlenmesi
+→ DailyFeatureSnapshot
+→ baseline + DERM değerlendirmesi
+→ açıklanabilir risk ekranı
+→ ESCAPE müdahale penceresi
+→ müdahalenin kullanıcı tarafından kabul edilmesi
+→ geçmiş/eğilim görünümü
+```
+
+İlk cihaz testinde oturum sayıları 600–880 bandındaydı. Yalnızca seçili paketlerle sınırlandırma tek başına yeterli olmadı. İkinci düzeltmede kısa foreground/background parçalanmaları aynı paket içinde normalize edildi ve temiz kurulumla yapılan gerçek cihaz tekrar testinde aynı tarihlerin oturum sayıları 33–59 bandına indi. Örneğin 29.08.2026 tarihinde sosyal kullanım 104 dk olarak korunurken oturum sayısı 685'ten 33'e düştü. Bu sonuç, düzeltmenin süreyi yapay olarak azaltmak yerine olay parçalanmasını oturum düzeyinde normalize ettiğini desteklemektedir.
+
+27.08 ve 30.08 tarihli süre farklarının kök nedeni fiziksel cihaz tanılama sürümünde aynı ham event seti üzerinde doğrulandı: bazı Instagram akışlarında yinelenen foreground olayı ilk başlangıcı koruyan eşleştirmede süreyi yapay olarak uzatıyordu. Final MVP süre hesabı en son foreground zaman damgasını kullanır; oturum sayısı ise bundan bağımsız olarak 30 saniyelik aynı-paket normalizasyonundan geçirilir. Böylece süre metrikleri eski doğru seviyelerine dönerken davranışsal oturum sayısı 33–59 bandında korunur.
+
+Ayrıntılı doğrulama kaydı için `docs/real-device-validation-2026-09-03.md` dosyasına bakın.
 
 ## DERM
 
@@ -128,4 +154,4 @@ Demo/Device Data
 → History
 ```
 
-Bu zincir uçtan uca çalışmadan MVP tamamlanmış kabul edilmez.
+Bu zincir 03–04.09.2026 tarihlerinde gerçek Android cihaz üzerinde uçtan uca doğrulanmıştır. UsageStats süre eşleştirmesi ve oturum normalizasyonu ayrı regresyon testleriyle sabitlenmiş, kullanıcı arayüzündeki tanılama alanları final MVP sürümünden kaldırılmıştır.

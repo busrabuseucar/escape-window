@@ -4,11 +4,7 @@ import '../../data/models/daily_feature_snapshot.dart';
 import '../../data/models/risk_assessment.dart';
 
 class HistoryScreen extends StatelessWidget {
-  const HistoryScreen({
-    super.key,
-    required this.history,
-    required this.assessment,
-  });
+  const HistoryScreen({super.key, required this.history, required this.assessment});
 
   final List<DailyFeatureSnapshot> history;
   final RiskAssessment assessment;
@@ -16,7 +12,6 @@ class HistoryScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final sorted = [...history]..sort((a, b) => a.date.compareTo(b.date));
-
     return Scaffold(
       appBar: AppBar(title: const Text('Geçmiş ve eğilim')),
       body: SafeArea(
@@ -63,16 +58,19 @@ class HistoryScreen extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          '${day.date.day.toString().padLeft(2, '0')}.${day.date.month.toString().padLeft(2, '0')}.${day.date.year}',
+                          _formatDate(day.date),
                           style: const TextStyle(fontWeight: FontWeight.w800),
                         ),
                         const SizedBox(height: 10),
-                        _row('Toplam ekran', '${day.totalScreenTimeMinutes.round()} dk'),
-                        _row('Sosyal medya', '${day.socialMediaTimeMinutes.round()} dk'),
-                        _row('Gece kullanımı', '${day.nightUsageMinutes.round()} dk'),
-                        _row('Oturum sayısı', '${day.sessionCount}'),
+                        _row('Toplam ekran', _minutes(day.totalScreenTimeMinutes)),
+                        _row('Sosyal medya', _minutes(day.socialMediaTimeMinutes)),
+                        _row('Gece kullanımı', _minutes(day.nightUsageMinutes)),
+                        _row('Oturum sayısı', day.sessionCount.toString()),
                         _row('Hedef aşımı', '${day.limitExceedanceCount} kez'),
-                        _row('Veri bütünlüğü', '%${(day.dataCompleteness * 100).round()}'),
+                        _row(
+                          'Veri bütünlüğü',
+                          '%${(day.dataCompleteness * 100).round()}',
+                        ),
                       ],
                     ),
                   ),
@@ -84,13 +82,26 @@ class HistoryScreen extends StatelessWidget {
     );
   }
 
-  Widget _row(String label, String value) {
+  static String _formatDate(DateTime date) {
+    final day = date.day.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    return '$day.$month.${date.year}';
+  }
+
+  static String _minutes(num value) => '${value.round()} dk';
+
+  static Widget _row(String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(
         children: [
           Expanded(child: Text(label)),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.w700)),
+          const SizedBox(width: 8),
+          Text(
+            value,
+            textAlign: TextAlign.right,
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
         ],
       ),
     );

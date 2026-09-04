@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 
 import '../../data/models/daily_feature_snapshot.dart';
+import 'usage_event_pairer.dart';
+import 'usage_session_normalizer.dart';
 
 class UsageAccessStatus {
   const UsageAccessStatus({required this.supported, required this.granted});
@@ -14,9 +16,13 @@ class UsageAccessStatus {
 class AndroidUsageStatsCollector {
   const AndroidUsageStatsCollector({
     this.channel = const MethodChannel('escape_window_ai/usage_stats'),
+    this.eventPairer = const UsageEventPairer(),
+    this.sessionNormalizer = const UsageSessionNormalizer(),
   });
 
   final MethodChannel channel;
+  final UsageEventPairer eventPairer;
+  final UsageSessionNormalizer sessionNormalizer;
 
   Future<UsageAccessStatus> getAccessStatus() async {
     if (!Platform.isAndroid) {
@@ -31,8 +37,6 @@ class AndroidUsageStatsCollector {
     await channel.invokeMethod<void>('openUsageAccessSettings');
   }
 
-  /// Converts Android UsageEvents into the privacy-minimized daily feature
-  /// snapshot consumed by DERM. No message/content data is requested.
   Future<DailyFeatureSnapshot> collectDay({
     required DateTime day,
     required double userDailyLimitMinutes,
@@ -41,7 +45,9 @@ class AndroidUsageStatsCollector {
     int sensitiveWindowEndHour = 6,
   }) async {
     if (!Platform.isAndroid) {
-      throw const UsageStatsUnavailableException('Android UsageStats is not supported on this platform.');
+      throw const UsageStatsUnavailableException(
+        'Android UsageStats is not supported on this platform.',
+      );
     }
 
     final start = DateTime(day.year, day.month, day.day);
@@ -54,7 +60,7 @@ class AndroidUsageStatsCollector {
 
     final events = raw
         .whereType<Map>()
-        .map((item) => _UsageEvent(
+        .map((item) => UsageEventSample(
               packageName: item['packageName'] as String? ?? '',
               timestampMs: (item['timestampMs'] as num?)?.toInt() ?? 0,
               eventType: (item['eventType'] as num?)?.toInt() ?? -1,
@@ -63,46 +69,29 @@ class AndroidUsageStatsCollector {
         .toList()
       ..sort((a, b) => a.timestampMs.compareTo(b.timestampMs));
 
-    final foregroundStartedAt = <String, int>{};
-    final sessions = <_UsageSession>[];
-
-    for (final event in events) {
-      if (event.eventType == 1) {
-        // UsageEvents.Event.MOVE_TO_FOREGROUND
-        foregroundStartedAt[event.packageName] = event.timestampMs;
-      } else if (event.eventType == 2) {
-        // UsageEvents.Event.MOVE_TO_BACKGROUND
-        final startedAt = foregroundStartedAt.remove(event.packageName);
-        if (startedAt != null && event.timestampMs > startedAt) {
-          sessions.add(_UsageSession(
-            packageName: event.packageName,
-            startMs: startedAt,
-            endMs: event.timestampMs,
-          ));
-        }
-      }
-    }
-
-    // Close sessions still in foreground at the end of the requested day.
-    for (final entry in foregroundStartedAt.entries) {
-      if (end.millisecondsSinceEpoch > entry.value) {
-        sessions.add(_UsageSession(
-          packageName: entry.key,
-          startMs: entry.value,
-          endMs: end.millisecondsSinceEpoch,
-        ));
-      }
-    }
+    final pairing = eventPairer.pairForDuration(
+      events: events,
+      dayEndMs: end.millisecondsSinceEpoch,
+    );
+    final durationSessions = pairing.sessions;
 
     double totalMinutes = 0;
     double socialMinutes = 0;
     double nightMinutes = 0;
+    final trackedDurationSessions = <UsageSessionWindow>[];
+    final trackedPackageMinutes = <String, double>{};
 
-    for (final session in sessions) {
+    for (final session in durationSessions) {
       final minutes = session.durationMinutes;
       totalMinutes += minutes;
       if (trackedSocialPackages.contains(session.packageName)) {
         socialMinutes += minutes;
+        trackedDurationSessions.add(session);
+        trackedPackageMinutes.update(
+          session.packageName,
+          (value) => value + minutes,
+          ifAbsent: () => minutes,
+        );
       }
       nightMinutes += _sensitiveOverlapMinutes(
         session,
@@ -112,9 +101,16 @@ class AndroidUsageStatsCollector {
       );
     }
 
+    final interactionEpisodes =
+        sessionNormalizer.mergeInteractionEpisodes(trackedDurationSessions);
+    final sessionCount = interactionEpisodes.length;
+
     final limitExceedanceMinutes =
         (socialMinutes - userDailyLimitMinutes).clamp(0.0, double.infinity).toDouble();
-    final sessionCount = sessions.length;
+
+    final trackedDuplicateForegroundCount = pairing.duplicateForegroundByPackage.entries
+        .where((entry) => trackedSocialPackages.contains(entry.key))
+        .fold<int>(0, (sum, entry) => sum + entry.value);
 
     return DailyFeatureSnapshot(
       date: start,
@@ -122,22 +118,35 @@ class AndroidUsageStatsCollector {
       socialMediaTimeMinutes: socialMinutes,
       nightUsageMinutes: nightMinutes,
       sessionCount: sessionCount,
-      meanSessionDurationMinutes: sessionCount == 0 ? 0 : totalMinutes / sessionCount,
+      meanSessionDurationMinutes:
+          sessionCount == 0 ? 0 : socialMinutes / sessionCount,
       limitExceedanceCount: limitExceedanceMinutes > 0 ? 1 : 0,
       limitExceedanceMinutes: limitExceedanceMinutes,
       dataCompleteness: events.isEmpty ? 0.0 : 1.0,
+      rawEventCount: events.length,
+      pairedIntervalCount: durationSessions.length,
+      unmatchedForegroundCount: pairing.unmatchedForegroundCount,
+      unmatchedBackgroundCount: pairing.unmatchedBackgroundCount,
+      trackedRawIntervalCount: trackedDurationSessions.length,
+      trackedPackageMinutes: Map.unmodifiable(trackedPackageMinutes),
+      legacyTotalScreenTimeMinutes: totalMinutes,
+      legacySocialMediaTimeMinutes: socialMinutes,
+      legacyTrackedIntervalCount: trackedDurationSessions.length,
+      legacyTrackedPackageMinutes: Map.unmodifiable(trackedPackageMinutes),
+      duplicateForegroundCount: pairing.duplicateForegroundCount,
+      trackedDuplicateForegroundCount: trackedDuplicateForegroundCount,
+      duplicateForegroundByPackage: pairing.duplicateForegroundByPackage,
     );
   }
 
   double _sensitiveOverlapMinutes(
-    _UsageSession session,
+    UsageSessionWindow session,
     DateTime dayStart,
     int startHour,
     int endHour,
   ) {
     final sessionStart = DateTime.fromMillisecondsSinceEpoch(session.startMs);
     final sessionEnd = DateTime.fromMillisecondsSinceEpoch(session.endMs);
-
     final windows = <({DateTime start, DateTime end})>[];
     if (startHour > endHour) {
       windows.add((start: dayStart, end: dayStart.add(Duration(hours: endHour))));
@@ -151,7 +160,6 @@ class AndroidUsageStatsCollector {
         end: dayStart.add(Duration(hours: endHour)),
       ));
     }
-
     double minutes = 0;
     for (final window in windows) {
       final overlapStart = sessionStart.isAfter(window.start) ? sessionStart : window.start;
@@ -167,21 +175,7 @@ class AndroidUsageStatsCollector {
 class UsageStatsUnavailableException implements Exception {
   const UsageStatsUnavailableException(this.message);
   final String message;
+
   @override
   String toString() => message;
-}
-
-class _UsageEvent {
-  const _UsageEvent({required this.packageName, required this.timestampMs, required this.eventType});
-  final String packageName;
-  final int timestampMs;
-  final int eventType;
-}
-
-class _UsageSession {
-  const _UsageSession({required this.packageName, required this.startMs, required this.endMs});
-  final String packageName;
-  final int startMs;
-  final int endMs;
-  double get durationMinutes => (endMs - startMs) / 60000.0;
 }

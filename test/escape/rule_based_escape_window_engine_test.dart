@@ -1,7 +1,7 @@
 import 'package:escape_window_ai/core/enums/risk_enums.dart';
 import 'package:escape_window_ai/data/models/risk_assessment.dart';
 import 'package:escape_window_ai/escape/rule_based_escape_window_engine.dart';
-import 'package:test/test.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 RiskAssessment assessment({
   RiskLevel risk = RiskLevel.watch,
