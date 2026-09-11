@@ -1,123 +1,198 @@
-# ESCAPE Window AI V2
+# ESCAPE Window AI
 
-**Kişiselleştirilmiş Erken Risk ve Mikro-Müdahale Sistemi**
+**Privacy-first Android behavioral risk system with real UsageStats ingestion, explainable decision logic, and physical-device validation.**
 
-ESCAPE Window AI, 18–24 yaş üniversite çağındaki kullanıcıların problemli akıllı telefon ve sosyal medya kullanımına doğru gelişebilecek öz-düzenleme kaybını erken aşamada değerlendirmek için geliştirilen Android-first, açıklanabilir ve privacy-by-design bir Flutter MVP'sidir.
+ESCAPE Window AI is an Android-first Flutter MVP for evaluating early signs of self-regulation loss in problematic smartphone and social-media use among university-age users (18–24). It combines a personal behavioral baseline, explainable risk logic, and low-intensity micro-interventions without reading private message content or presenting itself as a clinical diagnostic system.
 
-> **Durum: MVP v0.1.0 — gerçek Android cihazda uçtan uca doğrulandı.**  
-> Klinik tanı veya tedavi sistemi değildir; davranışsal ve bağlamsal risk göstergelerini değerlendirir.
+> **Status:** MVP `0.1.0+1` — end-to-end validated on a physical Android device using real Android UsageStats data.
 
-## Neden ESCAPE?
+## Engineering at a glance
 
-Sadece “bugün kaç saat telefona baktın?” demek yeterli değil. ESCAPE, kullanıcının kendi geçmişini kişisel baseline olarak ele alır; süreklilik, hedef aşımı ve hassas saat kullanımı gibi sinyalleri birlikte değerlendirir ve gerektiğinde düşük yoğunluklu bir müdahale penceresi açar.
+| Area | Implementation |
+| --- | --- |
+| Mobile | Flutter / Dart, Android-first |
+| Device data | Android UsageStats via native MethodChannel bridge |
+| Personalization | 14 completed-day pipeline with personal baseline |
+| Decision system | Explainable DERM risk + confidence logic |
+| Intervention | State-based ESCAPE Window and micro-intervention flow |
+| Privacy | Explicit consent, tracked-app selection, local-first/minimized data path |
+| Validation | Physical Android device, historical real UsageStats |
+| Quality gate | `flutter analyze` → `flutter test` → Android debug APK build |
 
-## Çalışan MVP Akışı
+## What I built
 
-```text
-Açık rıza
-→ Android Usage Access
-→ Takip edilecek uygulamaların seçimi
-→ 14 tamamlanmış günlük UsageStats verisi
-→ DailyFeatureSnapshot
-→ Personal Baseline
-→ DERM
-→ Risk + Confidence + Explanation
-→ ESCAPE Window
-→ Mikro-müdahale
-→ Kullanıcı yanıtı
-→ Geçmiş ve eğilim
-```
-
-## Doğrulanmış Durum
-
-03–04.09.2026 fiziksel Android cihaz testlerinde:
-
-- Usage Access izin akışı çalıştı.
-- Geçmiş UsageStats olayları gerçek cihazdan okundu.
-- 14 günlük baseline/değerlendirme penceresi işlendi.
-- Açıklanabilir risk ve güven çıktısı üretildi.
-- ESCAPE mikro-müdahalesi kullanıcıya sunuldu ve kabul akışı çalıştı.
-- Geçmiş/eğilim ekranı gerçek günlük metrikleri gösterdi.
-- Android event parçalanmasının şişirdiği oturum sayıları 30 saniyelik aynı-paket normalizasyonuyla düzeltildi.
-- Instagram'daki yinelenen foreground olayının süreyi +88/+129 dakika şişirebildiği kök neden testiyle bulundu ve regresyon testiyle sabitlendi.
-- Kullanıcıya dönük final ekrandan tüm UsageStats debug/tanılama alanları kaldırıldı.
-
-Ayrıntılı mühendislik kaydı: `docs/real-device-validation-2026-09-03.md`.
-
-## CI / Kalite Kapısı
-
-PR doğrulama zinciri:
+The working MVP implements the full path from device data to an explainable intervention:
 
 ```text
-flutter pub get
-→ flutter analyze
-→ flutter test
-→ flutter build apk --debug
-→ APK artifact
-```
-
-Final MVP değişiklikleri bu zincirden başarıyla geçti ve `main` dalına alındı. UsageStats duration pairing ve session normalization için ayrı regresyon testleri bulunur.
-
-## Mimari
-
-```text
+Explicit consent
+      ↓
+Android Usage Access
+      ↓
+Tracked-app selection
+      ↓
 Android UsageStats
+      ↓
+Native MethodChannel bridge
+      ↓
+Usage-event normalization
       ↓
 DailyFeatureSnapshot
       ↓
-Feature Engine
+Personal Baseline
       ↓
-Baseline Engine (PBD)
-      ↓
-DERM (BPI + SRFI + CVL + Safety)
+DERM
       ↓
 Risk + Confidence + Explanation
       ↓
 ESCAPE Window
       ↓
-Micro Intervention
+Micro-intervention
       ↓
-Outcome Tracking
+Outcome / History
 ```
 
-### DERM
+The application reads completed-day Android usage events, derives behavioral snapshots, establishes a personal baseline, produces an explainable early-risk state, selects a micro-intervention when appropriate, and records the user's response.
 
-DERM (**Davranışsal Erken Risk Modeli**) açıklanabilir erken-risk değerlendirme motorudur.
+## Real-device validation
 
-- **BPI — Behavioral Persistence Index:** risk örüntüsünün zamansal sürekliliği
-- **SRFI — Self-Regulation Failure Index:** kullanıcının kendi sınırlarının tekrar eden ihlali
-- **CVL — Contextual Vulnerability Level:** gece kullanımı gibi bağlamsal hassasiyet göstergeleri
-- **PBD — Personal Baseline Deviation:** bağımsız risk bileşeni değil, kişiselleştirme/kalibrasyon katmanı
+The MVP was tested on a physical Android device on **03–04 September 2026**. The validated flow included:
 
-İlk MVP ağırlıkları klinik olarak doğrulanmış kabul edilmez. Sistem doğrulanmamış bir “AI teşhis skoru” yerine sürümlenebilir ve açıklanabilir karar mantığı kullanır.
+- explicit-consent onboarding;
+- opening and detecting Android Usage Access permission;
+- user-controlled tracked-application selection;
+- reading historical UsageStats through the native bridge;
+- processing the 14 completed-day baseline/evaluation pipeline;
+- generating risk and separate confidence output;
+- displaying the contributing risk concepts;
+- triggering and accepting a micro-intervention;
+- displaying real day-level usage metrics in history/trend views.
 
-## Privacy-by-Design
+This validates the **engineering/runtime pipeline**, not the clinical validity of DERM thresholds, behavioral efficacy, or demographic generalization.
 
-- Kullanıcı açık rıza vermeden UsageStats okunmaz.
-- Yalnızca uygulama paketi, foreground/background olay tipi ve zaman damgası işlenir.
-- Mesaj içeriği, fotoğraf, mikrofon, kişi listesi, tuş vuruşu veya özel iletişim içeriği okunmaz.
-- Kullanıcı değerlendirmeye dahil edilecek uygulamaları kendisi seçer.
-- Local-first ve veri minimizasyonu yaklaşımı izlenir.
+Full engineering record: [`docs/real-device-validation-2026-09-03.md`](docs/real-device-validation-2026-09-03.md)
 
-## Risk ve Sistem Durumları
+## Engineering case study: Android event fragmentation
 
-**Risk:** `LOW`, `WATCH`, `ELEVATED`, `INSUFFICIENT_DATA`
+### Problem
 
-**ESCAPE Window:** `CLOSED`, `OBSERVING`, `ACTIVE`, `COOLDOWN`
+The first physical-device build reported approximately **600–880 sessions per day**. Those values were inconsistent with a user-facing definition of an application-use session.
 
-**Baseline:** `CALIBRATING`, `STABLE`, `FROZEN`, `RECALIBRATING`
+An initial hypothesis blamed launcher/system packages. Restricting the metric to user-selected packages did **not** solve the problem, so that hypothesis was rejected after physical-device retesting.
 
-## 2–3 Dakikalık Demo Senaryosu
+### Root cause
 
-1. **0:00–0:20 — Problem:** ESCAPE'in yalnızca ekran süresini değil, kişisel davranış örüntüsünü değerlendirdiğini anlat.
-2. **0:20–0:45 — Rıza ve veri:** Usage Access ve kullanıcının takip edeceği uygulamaları kendisinin seçtiğini göster.
-3. **0:45–1:20 — Risk:** Dashboard'da risk, güven ve açıklanabilir nedenleri göster; DERM'in tanı koymadığını belirt.
-4. **1:20–1:50 — Müdahale:** ESCAPE Window'u aç ve önerilen mikro-müdahalenin neden tetiklendiğini göster.
-5. **1:50–2:15 — Sonuç:** Müdahaleyi kabul et ve outcome tracking akışını göster.
-6. **2:15–2:40 — Kanıt:** Geçmiş/eğilim ekranında gerçek UsageStats günlük metriklerini göster.
-7. **2:40–3:00 — Teknik kapanış:** Gerçek cihaz doğrulaması, CI, regresyon testleri ve privacy-by-design yaklaşımını özetle.
+Android UsageEvents can expose rapid foreground/background transitions inside one continuous application interaction. Treating every technical interval as a separate behavioral session fragmented a single interaction into many sessions.
 
-## Proje Yapısı
+### Correction
+
+The collector was changed so that:
+
+- only user-selected tracked packages contribute to the tracked-session metric;
+- redundant foreground transitions do not reset an already-open interval;
+- same-package intervals separated by **30 seconds or less** are grouped into one behavioral session;
+- different packages are never merged;
+- duration remains independently calculated from usage intervals.
+
+The 30-second value is an engineering sessionization/debounce parameter, **not** a clinical threshold.
+
+### Physical-device result
+
+| Date | Raw fragmented count | Normalized count |
+| --- | ---: | ---: |
+| 02.09.2026 | 677 | 54 |
+| 01.09.2026 | 711 | 59 |
+| 31.08.2026 | 825 | 43 |
+| 30.08.2026 | 880 | 33 |
+| 29.08.2026 | 685 | 33 |
+| 28.08.2026 | 600 | 36 |
+| 27.08.2026 | 787 | 39 |
+
+The normalized counts were approximately **92–96% lower** than the fragmented technical-event counts. This is a normalization result, not an accuracy-improvement claim.
+
+A useful control case was 29.08.2026: tracked-social usage remained **104 minutes**, total screen time remained **207 minutes**, and sensitive-hour usage remained **3 minutes**, while session count changed from **685 to 33**. This helped verify that sessionization was being corrected without simply suppressing usage duration.
+
+## Engineering case study: duplicate foreground duration bug
+
+A second investigation found a separate duration-pairing problem.
+
+The same raw UsageStats event set was replayed through alternative pairing semantics to isolate algorithm behavior from Android query variability. On two affected days, a duplicate Instagram foreground event caused duration inflation of:
+
+- **+88 minutes** on 30.08.2026;
+- **+129 minutes** on 27.08.2026.
+
+The final implementation uses the most recent foreground timestamp for duration pairing. Duration pairing was extracted into a pure helper and a regression test was added for duplicate foreground events. Session normalization remains a separate metric and is independently tested.
+
+## Explainable decision system
+
+DERM (**Davranışsal Erken Risk Modeli**) is a versionable, explainable early-risk decision engine rather than an opaque diagnostic score.
+
+- **BPI — Behavioral Persistence Index:** temporal persistence of a risk pattern.
+- **SRFI — Self-Regulation Failure Index:** repeated violations of the user's own limits.
+- **CVL — Contextual Vulnerability Level:** context-sensitive indicators such as sensitive-hour usage.
+- **PBD — Personal Baseline Deviation:** personalization/calibration layer relative to the user's own history.
+
+Risk states:
+
+`LOW` · `WATCH` · `ELEVATED` · `INSUFFICIENT_DATA`
+
+ESCAPE Window states:
+
+`CLOSED` · `OBSERVING` · `ACTIVE` · `COOLDOWN`
+
+Baseline states:
+
+`CALIBRATING` · `STABLE` · `FROZEN` · `RECALIBRATING`
+
+The current MVP weights and thresholds are **not clinically validated**. Controlled pilot data and calibration are required before making efficacy or clinical-validity claims.
+
+## Privacy boundary
+
+The UsageStats path is deliberately minimized.
+
+**Processed by this data path:**
+
+- application package name;
+- foreground/background event type;
+- timestamp.
+
+**Not requested by this data path:**
+
+- message or chat content;
+- photos;
+- microphone recordings;
+- contact lists;
+- keystrokes;
+- private communication content.
+
+UsageStats is not read before explicit consent. Users choose which applications are included in assessment.
+
+## Architecture
+
+```text
+Android UsageStats
+        ↓
+Native Android Bridge
+        ↓
+Flutter MethodChannel
+        ↓
+Event / Session Normalization
+        ↓
+Daily Feature Engine
+        ↓
+Personal Baseline
+        ↓
+DERM
+        ↓
+Risk + Confidence + Explanation
+        ↓
+ESCAPE Window
+        ↓
+Micro-intervention
+        ↓
+Outcome Tracking / History
+```
+
+Project modules are separated by responsibility:
 
 ```text
 lib/
@@ -131,24 +206,63 @@ lib/
 ├── interventions/
 ├── privacy/
 └── ui/
-android/
-└── app/src/main/
+
 test/
 ├── baseline/
 ├── derm/
 ├── escape/
 ├── features/
-└── scenarios/
-docs/
-└── real-device-validation-2026-09-03.md
+├── hybrid/
+└── interventions/
 ```
 
-## MVP Kapsam Dışı
+## CI and testing
 
-Chatbot, sosyal ağ, oyunlaştırma, ebeveyn/kurum paneli, klinik teşhis, serbest GenAI psikolojik tavsiyesi, çoklu bağımlılık türleri ve doğrulanmamış ML modeli ilk MVP kapsamına dahil değildir.
+Pull-request validation runs:
 
-## Sürüm
+```text
+flutter pub get
+→ flutter analyze
+→ flutter test
+→ flutter build apk --debug
+→ upload debug APK artifact
+```
 
-`0.1.0+1` — gerçek cihazda doğrulanmış ilk çalışan MVP.
+The project includes regression coverage for the UsageStats duration-pairing and session-normalization defects found during physical-device testing.
 
-Bir sonraki ürün aşaması; kontrollü pilot veri toplama, DERM eşik/ağırlık kalibrasyonu, UX iyileştirmeleri ve araştırma protokolüdür.
+Workflow: [`.github/workflows/flutter-validation.yml`](.github/workflows/flutter-validation.yml)
+
+## 90-second demo path
+
+1. Show explicit consent and Usage Access.
+2. Select applications to include in assessment.
+3. Show real UsageStats-derived daily metrics.
+4. Open risk and confidence output and its explanation.
+5. Trigger the ESCAPE Window and show why the intervention was selected.
+6. Accept the intervention and show outcome/history.
+7. Close with the real-device debugging case, regression tests, and CI pipeline.
+
+## Current limitations
+
+The MVP intentionally does **not** claim:
+
+- clinical diagnosis or treatment;
+- clinically validated DERM weights or thresholds;
+- proven behavioral-outcome efficacy;
+- demographic generalization;
+- longitudinal reliability;
+- unrestricted AI-generated psychological advice.
+
+Chatbot, social-network, gamification, parent/institution dashboards, multi-addiction support, and an unvalidated ML classifier are outside the current MVP scope.
+
+## Next engineering milestone
+
+The next stage is a controlled pilot focused on data quality, DERM threshold/weight calibration, intervention-outcome measurement, UX refinement, and a documented research/validation protocol.
+
+Pilot specification: [`docs/derm-v0.2-pilot-spec.md`](docs/derm-v0.2-pilot-spec.md)
+
+---
+
+**Version:** `0.1.0+1`  
+**Platform:** Android / Flutter  
+**Validation:** Physical-device runtime chain PASS
