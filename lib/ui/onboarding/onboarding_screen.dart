@@ -11,7 +11,6 @@ class OnboardingScreen extends StatefulWidget {
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
   bool usageConsent = false;
-  bool notificationConsent = false;
 
   @override
   Widget build(BuildContext context) {
@@ -40,9 +39,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             ),
             SwitchListTile.adaptive(
               contentPadding: EdgeInsets.zero,
-              title: const Text('Müdahale bildirimlerine izin veriyorum'),
-              value: notificationConsent,
-              onChanged: (value) => setState(() => notificationConsent = value),
+              title: const Text('Otomatik bildirimler'),
+              subtitle: const Text('Bu sürümde uygulanmadı; öneriler uygulama içinde açılır.'),
+              value: false,
+              onChanged: null,
             ),
             const SizedBox(height: 24),
             FilledButton(

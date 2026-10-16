@@ -12,6 +12,9 @@ The pipeline separates Android event collection, duration pairing, session norma
 - Automatic Android backup is disabled to reduce unintended export of local response metadata.
 - Main-branch changes trigger analysis, tests and a debug APK build.
 
+- Missing-capture days are excluded from baseline means and calibration-day counts; absence is not zero use.
+- Onboarding cannot enable unimplemented notification delivery.
+
 ## Open verification work
 
 A new physical-device run is necessary for permission revocation, app restarts, usage-event coverage, DST days, small screens, OEM backup/transfer behavior and intervention response persistence. Historical device results in the September report are not evidence that October modifications were physically retested. SharedPreferences is not encrypted or transactional; multi-screen concurrent writes are not a supported workflow. No background monitoring or notification scheduler is implemented.

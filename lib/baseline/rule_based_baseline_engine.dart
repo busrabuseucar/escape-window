@@ -21,7 +21,10 @@ class RuleBasedBaselineEngine implements BaselineEngine {
   }) async {
     if (history.isEmpty) return const [];
 
-    final sorted = [...history]..sort((a, b) => a.date.compareTo(b.date));
+    // Missing capture is not a day of zero use.
+    final sorted = history.where((day) => day.dataCompleteness > 0).toList()
+      ..sort((a, b) => a.date.compareTo(b.date));
+    if (sorted.isEmpty) return const [];
     final meanCompleteness = sorted
             .map((day) => day.dataCompleteness)
             .reduce((a, b) => a + b) /
