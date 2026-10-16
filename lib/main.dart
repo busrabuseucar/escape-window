@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 
 import 'data/models/daily_feature_snapshot.dart';
@@ -54,7 +52,10 @@ class _AppFlowState extends State<_AppFlow> {
   static const _hybridEngine = HybridRiskEngine();
   static const _usageCollector = AndroidUsageStatsCollector();
   static const _cooldownPolicy = CooldownPolicy();
-  static const _interventionStore = SharedPreferencesInterventionOutcomeStore();
+  InterventionOutcomeStore get _interventionStore => SharedPreferencesInterventionOutcomeStore(
+    recordsKey: useDemoData ? "escape_demo_outcomes_v1" : "escape_intervention_outcomes_v1",
+  );
+  bool interventionsEnabled = true;
 
   bool consentCompleted = false;
   bool usagePermissionCompleted = false;
@@ -76,6 +77,7 @@ class _AppFlowState extends State<_AppFlow> {
     if (!usagePermissionCompleted && !useDemoData) {
       return UsagePermissionScreen(
         collector: _usageCollector,
+        onDemo: () => setState(() { useDemoData = true; }),
         onGranted: () => setState(() => usagePermissionCompleted = true),
       );
     }
@@ -157,6 +159,7 @@ class _AppFlowState extends State<_AppFlow> {
         final assessment = result.assessment;
 
         return DashboardScreen(
+          isDemo: bundle.source == 'demo',
           assessment: assessment,
           dailyLimitMinutes: dailyLimitMinutes,
           onRiskDetails: () {
@@ -182,6 +185,8 @@ class _AppFlowState extends State<_AppFlow> {
               MaterialPageRoute(
                 builder: (_) => PrivacyScreen(
                   onDeleteLocalDemoData: _resetState,
+                  interventionsEnabled: interventionsEnabled,
+                  onInterventionsChanged: (value) => setState(() => interventionsEnabled = value),
                   trackedPackages: trackedPackages,
                   onTrackedPackagesChanged: _updateTrackedPackages,
                 ),
@@ -225,7 +230,7 @@ class _AppFlowState extends State<_AppFlow> {
     final days = <DailyFeatureSnapshot>[];
 
     for (var offset = 14; offset >= 1; offset--) {
-      final day = anchor.subtract(Duration(days: offset));
+      final day = DateTime(anchor.year, anchor.month, anchor.day - offset);
       days.add(
         await _usageCollector.collectDay(
           day: day,
@@ -261,6 +266,10 @@ class _AppFlowState extends State<_AppFlow> {
     BuildContext context,
     HybridRiskResult result,
   ) async {
+    if (!interventionsEnabled) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Mikro müdahaleler kapalı.')));
+      return;
+    }
     const escapeEngine = RuleBasedEscapeWindowEngine();
     const interventionEngine = DeterministicInterventionEngine();
 
@@ -336,9 +345,12 @@ class _AppFlowState extends State<_AppFlow> {
     );
   }
 
-  void _resetState() {
-    unawaited(_interventionStore.clear());
+  Future<void> _resetState() async {
+    await const SharedPreferencesInterventionOutcomeStore().clear();
+    await const SharedPreferencesInterventionOutcomeStore(recordsKey: "escape_demo_outcomes_v1").clear();
+    if (!mounted) return;
     setState(() {
+      interventionsEnabled = true;
       consentCompleted = false;
       usagePermissionCompleted = false;
       appSelectionCompleted = false;
@@ -352,7 +364,7 @@ class _AppFlowState extends State<_AppFlow> {
 
   String _responseMessage(InterventionResponse response) => switch (response) {
         InterventionResponse.accepted => 'Müdahale kabul edildi.',
-        InterventionResponse.delayed => 'Müdahale daha sonra hatırlatılacak.',
+        InterventionResponse.delayed => 'Müdahale ertelendi. Otomatik bildirim planlanmaz.',
         InterventionResponse.dismissed => 'Müdahale şimdilik geçildi. Risk puanın bundan dolayı artmaz.',
         InterventionResponse.noResponse => 'Yanıt kaydedilmedi.',
       };

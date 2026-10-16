@@ -7,10 +7,12 @@ class UsagePermissionScreen extends StatefulWidget {
     super.key,
     required this.collector,
     required this.onGranted,
+    required this.onDemo,
   });
 
   final AndroidUsageStatsCollector collector;
   final VoidCallback onGranted;
+  final VoidCallback onDemo;
 
   @override
   State<UsagePermissionScreen> createState() => _UsagePermissionScreenState();
@@ -128,6 +130,7 @@ class _UsagePermissionScreenState extends State<UsagePermissionScreen> with Widg
               onPressed: granted ? widget.onGranted : null,
               child: const Text('Devam et'),
             ),
+            TextButton(onPressed: widget.onDemo, child: const Text('İzin vermeden örnek verilerle dene')),
           ],
         ),
       ),

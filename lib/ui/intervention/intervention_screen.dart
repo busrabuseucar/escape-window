@@ -10,7 +10,7 @@ class InterventionScreen extends StatefulWidget {
   });
 
   final InterventionRecommendation recommendation;
-  final ValueChanged<InterventionResponse> onResponse;
+  final Future<void> Function(InterventionResponse) onResponse;
 
   @override
   State<InterventionScreen> createState() => _InterventionScreenState();
@@ -19,10 +19,16 @@ class InterventionScreen extends StatefulWidget {
 class _InterventionScreenState extends State<InterventionScreen> {
   bool _responded = false;
 
-  void _respond(InterventionResponse response) {
+  Future<void> _respond(InterventionResponse response) async {
     if (_responded) return;
     _responded = true;
-    widget.onResponse(response);
+    try {
+      await widget.onResponse(response);
+    } catch (_) {
+      _responded = false;
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Yanıt kaydedilemedi. Tekrar dene.')));
+    }
   }
 
   @override
@@ -93,7 +99,7 @@ class _InterventionScreenState extends State<InterventionScreen> {
                   OutlinedButton(
                     onPressed: () =>
                         _respond(InterventionResponse.delayed),
-                    child: const Text('Daha sonra hatırlat'),
+                    child: const Text('Şimdilik ertele'),
                   ),
                 ],
                 if (recommendation.allowDismiss) ...[

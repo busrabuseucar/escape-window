@@ -5,6 +5,7 @@
 
     <application
         android:label="ESCAPE Window AI"
+        android:allowBackup="false"
         android:name="${applicationName}">
         <activity
             android:name=".MainActivity"

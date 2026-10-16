@@ -7,6 +7,7 @@ class DashboardScreen extends StatelessWidget {
   const DashboardScreen({
     super.key,
     required this.assessment,
+    required this.isDemo,
     required this.dailyLimitMinutes,
     required this.onRiskDetails,
     required this.onOpenIntervention,
@@ -15,6 +16,7 @@ class DashboardScreen extends StatelessWidget {
   });
 
   final RiskAssessment assessment;
+  final bool isDemo;
   final double dailyLimitMinutes;
   final VoidCallback onRiskDetails;
   final VoidCallback onOpenIntervention;
@@ -39,7 +41,7 @@ class DashboardScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Bugünkü durum'),
+        title: const Text('Tamamlanan günlerin değerlendirmesi'),
         actions: [
           IconButton(
             onPressed: onPrivacy,
@@ -52,6 +54,8 @@ class DashboardScreen extends StatelessWidget {
         child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
+            Text(isDemo ? 'ÖRNEK VERİ — cihaz kullanımını göstermez.' : 'ANDROID KULLANIM VERİSİ — son tamamlanan günler; canlı takip değildir.'),
+            const SizedBox(height: 12),
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(22),

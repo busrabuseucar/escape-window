@@ -51,7 +51,7 @@ class AndroidUsageStatsCollector {
     }
 
     final start = DateTime(day.year, day.month, day.day);
-    final end = start.add(const Duration(days: 1));
+    final end = DateTime(day.year, day.month, day.day + 1);
     final raw = await channel.invokeListMethod<dynamic>('queryUsageEvents', {
           'startMs': start.millisecondsSinceEpoch,
           'endMs': end.millisecondsSinceEpoch,
@@ -149,15 +149,15 @@ class AndroidUsageStatsCollector {
     final sessionEnd = DateTime.fromMillisecondsSinceEpoch(session.endMs);
     final windows = <({DateTime start, DateTime end})>[];
     if (startHour > endHour) {
-      windows.add((start: dayStart, end: dayStart.add(Duration(hours: endHour))));
+      windows.add((start: dayStart, end: DateTime(dayStart.year, dayStart.month, dayStart.day, endHour)));
       windows.add((
-        start: dayStart.add(Duration(hours: startHour)),
-        end: dayStart.add(const Duration(days: 1)),
+        start: DateTime(dayStart.year, dayStart.month, dayStart.day, startHour),
+        end: DateTime(dayStart.year, dayStart.month, dayStart.day + 1),
       ));
     } else {
       windows.add((
-        start: dayStart.add(Duration(hours: startHour)),
-        end: dayStart.add(Duration(hours: endHour)),
+        start: DateTime(dayStart.year, dayStart.month, dayStart.day, startHour),
+        end: DateTime(dayStart.year, dayStart.month, dayStart.day, endHour),
       ));
     }
     double minutes = 0;

@@ -86,22 +86,24 @@ abstract interface class InterventionOutcomeStore {
 
 class SharedPreferencesInterventionOutcomeStore
     implements InterventionOutcomeStore {
-  const SharedPreferencesInterventionOutcomeStore();
+  const SharedPreferencesInterventionOutcomeStore({this.recordsKey = 'escape_intervention_outcomes_v1'});
 
-  static const _recordsKey = 'escape_intervention_outcomes_v1';
+  final String recordsKey;
 
   @override
   Future<void> append(InterventionOutcomeRecord record) async {
     final prefs = await SharedPreferences.getInstance();
-    final current = prefs.getStringList(_recordsKey) ?? <String>[];
+    final current = prefs.getStringList(recordsKey) ?? <String>[];
     final next = <String>[...current, jsonEncode(record.toJson())];
-    await prefs.setStringList(_recordsKey, next);
+    if (!await prefs.setStringList(recordsKey, next)) {
+      throw StateError('Outcome could not be saved.');
+    }
   }
 
   @override
   Future<List<InterventionOutcomeRecord>> readAll() async {
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getStringList(_recordsKey) ?? const <String>[];
+    final raw = prefs.getStringList(recordsKey) ?? const <String>[];
 
     final parsed = <InterventionOutcomeRecord>[];
     for (final entry in raw) {
@@ -136,6 +138,8 @@ class SharedPreferencesInterventionOutcomeStore
   @override
   Future<void> clear() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_recordsKey);
+    if (!await prefs.remove(recordsKey)) {
+      throw StateError('Outcomes could not be deleted.');
+    }
   }
 }

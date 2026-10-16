@@ -6,11 +6,15 @@ class PrivacyScreen extends StatefulWidget {
   const PrivacyScreen({
     super.key,
     required this.onDeleteLocalDemoData,
+    required this.interventionsEnabled,
+    required this.onInterventionsChanged,
     required this.trackedPackages,
     required this.onTrackedPackagesChanged,
   });
 
-  final VoidCallback onDeleteLocalDemoData;
+  final Future<void> Function() onDeleteLocalDemoData;
+  final bool interventionsEnabled;
+  final ValueChanged<bool> onInterventionsChanged;
   final Set<String> trackedPackages;
   final ValueChanged<Set<String>> onTrackedPackagesChanged;
 
@@ -19,13 +23,14 @@ class PrivacyScreen extends StatefulWidget {
 }
 
 class _PrivacyScreenState extends State<PrivacyScreen> {
-  bool interventionsEnabled = true;
-  bool researchSharingEnabled = false;
+  late bool interventionsEnabled;
+  bool deleting = false;
   late Set<String> trackedPackages;
 
   @override
   void initState() {
     super.initState();
+    interventionsEnabled = widget.interventionsEnabled;
     trackedPackages = {...widget.trackedPackages};
   }
 
@@ -60,15 +65,18 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
               title: const Text('Mikro müdahaleleri etkinleştir'),
               subtitle: const Text('Kapatılırsa ESCAPE önerileri gösterilmez.'),
               value: interventionsEnabled,
-              onChanged: (value) => setState(() => interventionsEnabled = value),
+              onChanged: (value) {
+                setState(() => interventionsEnabled = value);
+                widget.onInterventionsChanged(value);
+              },
             ),
             SwitchListTile(
               title: const Text('Araştırma için anonimleştirilmiş veri paylaşımı'),
               subtitle: const Text(
                 'MVP’de varsayılan kapalıdır. Gerçek paylaşım altyapısı kurulmadan veri gönderilmez.',
               ),
-              value: researchSharingEnabled,
-              onChanged: (value) => setState(() => researchSharingEnabled = value),
+              value: false,
+              onChanged: null,
             ),
             const Divider(height: 32),
             ListTile(
@@ -104,21 +112,40 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
             const SizedBox(height: 18),
             OutlinedButton.icon(
               icon: const Icon(Icons.delete_outline),
-              label: const Text('Yerel demo verisini sil ve başlangıca dön'),
-              onPressed: () {
-                widget.onDeleteLocalDemoData();
-                Navigator.of(context).popUntil((route) => route.isFirst);
-              },
+              label: const Text('Yerel kayıtları sil ve başlangıca dön'),
+              onPressed: deleting ? null : _deleteLocalData,
             ),
             const SizedBox(height: 10),
             Text(
-              'Not: Uygulama seçimi artık değerlendirme hattına bağlıdır. Mikro müdahale ve araştırma paylaşımı anahtarlarının kalıcı cihaz depolaması sonraki MVP adımıdır.',
+              'Müdahale tercihi bu oturumda uygulanır; yeniden açılışta varsayılana döner. Araştırma paylaşımı uygulanmadı. Yerel silme Android’in UsageStats geçmişini veya sistem iznini silmez.',
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _deleteLocalData() async {
+    final confirmed = await showDialog<bool>(context: context, builder: (context) => AlertDialog(
+      title: const Text('Yerel kayıtlar silinsin mi?'),
+      content: const Text('Müdahale yanıtları silinir ve başlangıca dönülür. Android kullanım geçmişi ve sistem izni korunur.'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Vazgeç')),
+        FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Sil')),
+      ],
+    ));
+    if (confirmed != true || !mounted) return;
+    setState(() => deleting = true);
+    try {
+      await widget.onDeleteLocalDemoData();
+      if (!mounted) return;
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => deleting = false);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Kayıtlar silinemedi. Tekrar dene.')));
+    }
   }
 
   Future<void> _editTrackedApps() async {

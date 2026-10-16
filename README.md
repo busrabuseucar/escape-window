@@ -4,7 +4,7 @@
 
 ESCAPE Window AI is an Android-first Flutter MVP for evaluating early signs of self-regulation loss in problematic smartphone and social-media use among university-age users (18–24). It combines a personal behavioral baseline, explainable risk logic, and low-intensity micro-interventions without reading private message content or presenting itself as a clinical diagnostic system.
 
-> **Status:** MVP `0.1.0+1` — end-to-end validated on a physical Android device using real Android UsageStats data.
+> **Status:** MVP `0.1.0+1`. The September device-validation record describes an earlier revision; the October changes require a new physical-device regression run.
 
 ## Engineering at a glance
 
@@ -19,7 +19,7 @@ ESCAPE Window AI is an Android-first Flutter MVP for evaluating early signs of s
 | Validation | Physical Android device, historical real UsageStats |
 | Quality gate | `flutter analyze` → `flutter test` → Android debug APK build |
 
-## What I built
+## Implemented data flow
 
 The working MVP implements the full path from device data to an explainable intervention:
 
@@ -204,7 +204,6 @@ lib/
 ├── escape/
 ├── hybrid/
 ├── interventions/
-├── privacy/
 └── ui/
 
 test/
@@ -218,7 +217,7 @@ test/
 
 ## CI and testing
 
-Pull-request validation runs:
+Main-branch pushes and pull requests run:
 
 ```text
 flutter pub get
@@ -232,7 +231,7 @@ The project includes regression coverage for the UsageStats duration-pairing and
 
 Workflow: [`.github/workflows/flutter-validation.yml`](.github/workflows/flutter-validation.yml)
 
-## 90-second demo path
+## Functional verification path
 
 1. Show explicit consent and Usage Access.
 2. Select applications to include in assessment.
@@ -265,4 +264,31 @@ Pilot specification: [`docs/derm-v0.2-pilot-spec.md`](docs/derm-v0.2-pilot-spec.
 
 **Version:** `0.1.0+1`  
 **Platform:** Android / Flutter  
-**Validation:** Physical-device runtime chain PASS
+**Validation:** Historical physical-device record; current automated checks are in GitHub Actions.
+
+## Local setup
+
+Install the Flutter stable SDK and Android SDK with Java 17, then:
+
+```sh
+git clone https://github.com/busrabuseucar/escape-window.git
+cd escape-window
+flutter pub get
+flutter analyze
+flutter test
+flutter run
+```
+
+Start on an Android emulator/device. After consent, choose usage permission or **İzin vermeden örnek verilerle dene** for an explicitly labeled synthetic scenario. A physical-device run is required to validate real UsageStats behavior. Debug builds are development artifacts, not signed production releases.
+
+## Current operational boundaries
+
+- Assessment uses completed historical days, not live monitoring. Seven days calibrate the baseline; seven subsequent days are evaluated.
+- Onboarding choices and intervention preference are session-only and reset on restart. Intervention responses/cooldowns persist locally. Demo and device-data responses use separate storage keys.
+- The intervention switch now controls the action. Deferring records a response and cooldown; it does not schedule a notification.
+- Research sharing is unavailable and disabled. Android automatic backup is disabled for the app; device/OEM transfer behavior still needs device testing.
+- Reset awaits local response deletion and returns to onboarding only after success. It does not delete Android UsageStats or revoke Usage Access; those are OS settings.
+- Data completeness currently distinguishes empty versus nonempty event results; it does not prove full-day coverage. Boundary-crossing sessions, missing events and concurrent foreground intervals can affect totals. A nonempty day is not a guarantee of complete capture.
+- Persisted outcomes use SharedPreferences, not an encrypted database. Existing legacy outcomes have no source tag; only newly separated demo records are isolated from physical-mode cooldowns.
+
+[Technical design and verification limits](docs/TECHNICAL_DESIGN.md)

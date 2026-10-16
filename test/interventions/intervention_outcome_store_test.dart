@@ -11,6 +11,18 @@ void main() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
   });
 
+  test('demo and physical outcomes have separate storage', () async {
+    SharedPreferences.setMockInitialValues(<String, Object>{
+      'escape_demo_outcomes_v1': <String>['invalid demo row'],
+      'escape_intervention_outcomes_v1': <String>['invalid physical row'],
+    });
+    const demo = SharedPreferencesInterventionOutcomeStore(recordsKey: 'escape_demo_outcomes_v1');
+    await demo.clear();
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getStringList('escape_demo_outcomes_v1'), isNull);
+    expect(prefs.getStringList('escape_intervention_outcomes_v1'), hasLength(1));
+  });
+
   test('persists and restores intervention outcome with cooldown', () async {
     const store = SharedPreferencesInterventionOutcomeStore();
     final shownAt = DateTime(2026, 9, 4, 8, 0);
