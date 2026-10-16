@@ -292,3 +292,7 @@ Start on an Android emulator/device. After consent, choose usage permission or *
 - Persisted outcomes use SharedPreferences, not an encrypted database. Existing legacy outcomes have no source tag; only newly separated demo records are isolated from physical-mode cooldowns.
 
 [Technical design and verification limits](docs/TECHNICAL_DESIGN.md)
+
+## İşletim
+
+[İşletim ve sürüm doğrulama](docs/OPERATIONS.md) — kurulum, veri saklama, yayın, geri dönüş ve doğrulama kapsamı.
