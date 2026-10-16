@@ -17,7 +17,7 @@ void main() {
     )));
     await tester.pumpAndSettle();
     final button = find.text('İzin vermeden örnek verilerle dene');
-    await tester.ensureVisible(button);
+    await tester.scrollUntilVisible(button, 250, scrollable: find.byType(Scrollable).first);
     await tester.tap(button);
     expect(demo, isTrue);
   });
@@ -41,7 +41,7 @@ void main() {
       trackedPackages: const {}, onTrackedPackagesChanged: (_) {}, interventionsEnabled: true, onInterventionsChanged: (_) {},
     )));
     final button = find.text('Yerel kayıtları sil ve başlangıca dön');
-    await tester.ensureVisible(button);
+    await tester.scrollUntilVisible(button, 250, scrollable: find.byType(Scrollable).first);
     await tester.tap(button); await tester.pumpAndSettle();
     expect(attempts, 0);
     await tester.tap(find.text('Sil')); await tester.pumpAndSettle();

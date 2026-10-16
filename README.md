@@ -268,7 +268,7 @@ Pilot specification: [`docs/derm-v0.2-pilot-spec.md`](docs/derm-v0.2-pilot-spec.
 
 ## Local setup
 
-Install the Flutter stable SDK and Android SDK with Java 17, then:
+Install Flutter 3.47.7 (the CI SDK) and Android SDK with Java 17, then:
 
 ```sh
 git clone https://github.com/busrabuseucar/escape-window.git
